@@ -36,7 +36,7 @@ class BootReceiver : BroadcastReceiver() {
     
     private fun restartWorkManagerIfNeeded(context: Context) {
         try {
-            val prefs = context.getSharedPreferences(NativeSyncConfig.FLUTTER_PREFS_NAME, Context.MODE_PRIVATE)
+            val prefs = context.getSharedPreferences(NativeSyncConfig.PREFS_NAME, Context.MODE_PRIVATE)
             val syncActive = prefs.getBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, false)
             
             if (syncActive) {

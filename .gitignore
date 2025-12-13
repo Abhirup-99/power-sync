@@ -51,3 +51,31 @@ ios/Runner/GoogleService-Info.plist
 ios/Runner/dev/GoogleService-Info.plist
 ios/Runner/staging/GoogleService-Info.plist
 ios/Runner/prod/GoogleService-Info.plist
+
+# Android local configuration
+android/local.properties
+local.properties
+
+# Gradle
+.gradle/
+android/.gradle/
+android/.kotlin/
+**/build/
+
+# Keystore files
+*.keystore
+*.jks
+key.properties
+
+# Build logs
+*.log
+build.log
+
+# IDE specific
+*.iml
+chord.iml
+android/*.iml
+
+# Generated files
+.cxx/
+.externalNativeBuild/

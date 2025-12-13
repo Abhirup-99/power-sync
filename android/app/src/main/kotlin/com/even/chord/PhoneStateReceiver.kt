@@ -72,7 +72,7 @@ class PhoneStateReceiver : BroadcastReceiver() {
     private fun triggerSync(context: Context) {
         try {
             // Check if sync is active
-            val prefs = context.getSharedPreferences(NativeSyncConfig.FLUTTER_PREFS_NAME, Context.MODE_PRIVATE)
+            val prefs = context.getSharedPreferences(NativeSyncConfig.PREFS_NAME, Context.MODE_PRIVATE)
             val syncActive = prefs.getBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, false)
             
             if (!syncActive) {

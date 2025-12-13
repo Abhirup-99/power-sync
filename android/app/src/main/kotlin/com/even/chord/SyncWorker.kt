@@ -48,7 +48,7 @@ class SyncWorker(
         try {
             // Check if sync is active
             val prefs = applicationContext.getSharedPreferences(
-                NativeSyncConfig.FLUTTER_PREFS_NAME,
+                NativeSyncConfig.PREFS_NAME,
                 Context.MODE_PRIVATE
             )
             val syncActive = prefs.getBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, false)
@@ -87,7 +87,7 @@ class SyncWorker(
                 }
 
                 val prefs = applicationContext.getSharedPreferences(
-                    NativeSyncConfig.FLUTTER_PREFS_NAME,
+                    NativeSyncConfig.PREFS_NAME,
                     Context.MODE_PRIVATE
                 )
                 val folderPath = prefs.getString(NativeSyncConfig.KEY_SYNC_FOLDER_PATH, null)
@@ -216,7 +216,7 @@ class SyncWorker(
 
     private fun updateLastSyncTime() {
         applicationContext.getSharedPreferences(
-            NativeSyncConfig.FLUTTER_PREFS_NAME,
+            NativeSyncConfig.PREFS_NAME,
             Context.MODE_PRIVATE
         ).edit()
             .putString(NativeSyncConfig.KEY_LAST_SYNC_TIME, java.util.Date().toString())

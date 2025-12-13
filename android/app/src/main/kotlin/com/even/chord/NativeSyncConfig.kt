@@ -1,8 +1,8 @@
 package com.even.chord
 
 /**
- * Configuration constants for the WorkManager sync.
- * Matches Flutter's configuration for seamless data sharing.
+ * Configuration constants for the app.
+ * Updated for pure Kotlin Android (no Flutter prefixes).
  */
 object NativeSyncConfig {
     // API Configuration
@@ -10,10 +10,13 @@ object NativeSyncConfig {
     const val API_UPLOAD_ENDPOINT = "/app-internal/upload-recording"
     
     // SharedPreferences
+    const val PREFS_NAME = "chord_prefs"
+    const val KEY_SYNC_ACTIVE = "sync_active"
+    const val KEY_SYNC_FOLDER_PATH = "sync_folder_path"
+    const val KEY_LAST_SYNC_TIME = "last_sync_time"
+    
+    // Legacy Flutter prefs (for migration)
     const val FLUTTER_PREFS_NAME = "FlutterSharedPreferences"
-    const val KEY_SYNC_ACTIVE = "flutter.sync_active"
-    const val KEY_SYNC_FOLDER_PATH = "flutter.sync_folder_path"
-    const val KEY_LAST_SYNC_TIME = "flutter.last_sync_time"
     
     // Database
     const val DATABASE_NAME = "chord_sync.db"
@@ -25,7 +28,7 @@ object NativeSyncConfig {
     const val NOTIFICATION_ID = 256
     
     // Sync Configuration
-    const val SYNC_INTERVAL_MINUTES = 5L
+    const val SYNC_INTERVAL_MINUTES = 15L  // Android minimum for WorkManager
     const val UPLOAD_TIMEOUT_SECONDS = 60L
     
     // Firebase Storage

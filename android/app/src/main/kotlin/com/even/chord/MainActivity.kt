@@ -2,20 +2,25 @@ package com.even.chord
 
 import android.content.Context
 import android.os.Bundle
-import io.flutter.embedding.android.FlutterActivity
-import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.plugin.common.MethodChannel
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.Constraints
-import androidx.work.NetworkType
-import java.util.concurrent.TimeUnit
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.navigation.compose.rememberNavController
+import com.even.chord.ui.navigation.NavGraph
+import com.even.chord.ui.navigation.Screen
+import com.even.chord.ui.theme.ChordTheme
+import com.google.firebase.auth.FirebaseAuth
 
-class MainActivity: FlutterActivity() {
-    private val DEBUG_CHANNEL = "com.even.chord/debug_log"
-    private val SYNC_CHANNEL = "com.even.chord/sync"
-    private val WORK_NAME = "sync_work"
+class MainActivity : ComponentActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -23,139 +28,56 @@ class MainActivity: FlutterActivity() {
         // Initialize debug logger
         DebugLogger.initialize(applicationContext)
         DebugLogger.i("MainActivity", "onCreate called")
-    }
-    
-    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
-        super.configureFlutterEngine(flutterEngine)
         
-        // Set up debug logging channel
-        val debugChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEBUG_CHANNEL)
+        enableEdgeToEdge()
         
-        debugChannel.setMethodCallHandler { call, result ->
-            when (call.method) {
-                "enableLogging" -> {
-                    val enabled = call.argument<Boolean>("enabled") ?: false
-                    DebugLogger.setEnabled(enabled, applicationContext)
-                    result.success(true)
-                }
-                "getKotlinLogs" -> {
-                    result.success(DebugLogger.getLogContents())
-                }
-                "clearKotlinLogs" -> {
-                    DebugLogger.clearLogs()
-                    result.success(true)
-                }
-                else -> result.notImplemented()
-            }
-        }
-        
-        // Sync control channel - WorkManager only
-        val syncChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SYNC_CHANNEL)
-        
-        syncChannel.setMethodCallHandler { call, result ->
-            when (call.method) {
-                "startSync" -> {
-                    try {
-                        // Set sync_active flag
-                        val prefs = getSharedPreferences(NativeSyncConfig.FLUTTER_PREFS_NAME, Context.MODE_PRIVATE)
-                        prefs.edit().putBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, true).apply()
-                        
-                        // Start WorkManager periodic sync
-                        startWorkManager()
-                        
-                        DebugLogger.i("MainActivity", "WorkManager sync started")
-                        result.success(true)
-                    } catch (e: Exception) {
-                        DebugLogger.e("MainActivity", "Failed to start sync", e)
-                        result.error("START_FAILED", e.message, null)
+        setContent {
+            ChordTheme(darkTheme = false) {
+                val navController = rememberNavController()
+                var startDestination by remember { mutableStateOf<String?>(null) }
+                
+                // Determine start destination based on auth state
+                LaunchedEffect(Unit) {
+                    val user = FirebaseAuth.getInstance().currentUser
+                    startDestination = if (user != null) {
+                        // Check if permissions are granted
+                        if (hasRequiredPermissions()) {
+                            Screen.Onboarding.route
+                        } else {
+                            Screen.Permissions.route
+                        }
+                    } else {
+                        Screen.Login.route
                     }
                 }
-                "stopSync" -> {
-                    try {
-                        // Clear sync_active flag
-                        val prefs = getSharedPreferences(NativeSyncConfig.FLUTTER_PREFS_NAME, Context.MODE_PRIVATE)
-                        prefs.edit().putBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, false).apply()
-                        
-                        // Stop WorkManager
-                        stopWorkManager()
-                        
-                        DebugLogger.i("MainActivity", "WorkManager sync stopped")
-                        result.success(true)
-                    } catch (e: Exception) {
-                        DebugLogger.e("MainActivity", "Failed to stop sync", e)
-                        result.error("STOP_FAILED", e.message, null)
+                
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = Color.White
+                ) {
+                    startDestination?.let { destination ->
+                        NavGraph(
+                            navController = navController,
+                            startDestination = destination
+                        )
                     }
                 }
-                "isSyncActive" -> {
-                    val prefs = getSharedPreferences(NativeSyncConfig.FLUTTER_PREFS_NAME, Context.MODE_PRIVATE)
-                    val syncActive = prefs.getBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, false)
-                    result.success(syncActive)
-                }
-                "getSyncStatus" -> {
-                    val prefs = getSharedPreferences(NativeSyncConfig.FLUTTER_PREFS_NAME, Context.MODE_PRIVATE)
-                    val status = mapOf(
-                        "syncActive" to prefs.getBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, false),
-                        "lastSyncTime" to prefs.getString(NativeSyncConfig.KEY_LAST_SYNC_TIME, null)
-                    )
-                    result.success(status)
-                }
-                "triggerImmediateSync" -> {
-                    try {
-                        // Enqueue a one-time work request for immediate sync
-                        val oneTimeRequest = androidx.work.OneTimeWorkRequestBuilder<SyncWorker>()
-                            .setConstraints(
-                                Constraints.Builder()
-                                    .setRequiredNetworkType(NetworkType.CONNECTED)
-                                    .build()
-                            )
-                            .build()
-                        
-                        WorkManager.getInstance(applicationContext).enqueue(oneTimeRequest)
-                        DebugLogger.i("MainActivity", "Immediate sync triggered")
-                        result.success(true)
-                    } catch (e: Exception) {
-                        DebugLogger.e("MainActivity", "Failed to trigger immediate sync", e)
-                        result.error("SYNC_FAILED", e.message, null)
-                    }
-                }
-                else -> result.notImplemented()
             }
         }
     }
     
-    private fun startWorkManager() {
-        try {
-            // Constraints for the sync work
-            val constraints = Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED)
-                .build()
-            
-            // Use configured interval for syncs
-            val workRequest = PeriodicWorkRequestBuilder<SyncWorker>(
-                NativeSyncConfig.SYNC_INTERVAL_MINUTES, TimeUnit.MINUTES
-            )
-                .setConstraints(constraints)
-                .build()
-            
-            WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
-                WORK_NAME,
-                ExistingPeriodicWorkPolicy.UPDATE,
-                workRequest
-            )
-            
-            DebugLogger.i("MainActivity", "WorkManager sync scheduled (every ${NativeSyncConfig.SYNC_INTERVAL_MINUTES} min)")
-        } catch (e: Exception) {
-            DebugLogger.e("MainActivity", "Failed to start WorkManager", e)
+    private fun hasRequiredPermissions(): Boolean {
+        val hasPhone = checkSelfPermission(android.Manifest.permission.READ_PHONE_STATE) == 
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        
+        val hasStorage = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            android.os.Environment.isExternalStorageManager()
+        } else {
+            checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) == 
+                android.content.pm.PackageManager.PERMISSION_GRANTED
         }
-    }
-    
-    private fun stopWorkManager() {
-        try {
-            WorkManager.getInstance(applicationContext).cancelUniqueWork(WORK_NAME)
-            DebugLogger.i("MainActivity", "WorkManager sync cancelled")
-        } catch (e: Exception) {
-            DebugLogger.e("MainActivity", "Failed to stop WorkManager", e)
-        }
+        
+        return hasPhone && hasStorage
     }
     
     override fun onDestroy() {

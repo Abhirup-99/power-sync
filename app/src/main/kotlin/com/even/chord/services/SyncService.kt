@@ -1,6 +1,7 @@
 package com.even.chord.services
 
 import android.content.Context
+import android.content.Intent
 import androidx.work.*
 import com.even.chord.DebugLogger
 import com.even.chord.NativeSyncConfig
@@ -67,7 +68,10 @@ class SyncService(private val context: Context) {
             updateLastSyncTime()
             
             if (startBackgroundService) {
+                // Determine if we need to start WorkManager or if we just want to ensure FileMonitorService
+                // But generally startBackgroundService=true implies "Turn on all background sync mechanisms"
                 startWorkManager()
+                startFileMonitorService()
                 prefs.edit().putBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, true).apply()
             }
             
@@ -128,16 +132,33 @@ class SyncService(private val context: Context) {
         
         DebugLogger.i("SyncService", "WorkManager sync scheduled")
     }
+
+    private fun startFileMonitorService() {
+        val intent = Intent(context, FileMonitorService::class.java)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            context.startForegroundService(intent)
+        } else {
+            context.startService(intent)
+        }
+        DebugLogger.i("SyncService", "FileMonitorService started from SyncService")
+    }
+
+    private fun stopFileMonitorService() {
+        val intent = Intent(context, FileMonitorService::class.java)
+        context.stopService(intent)
+        DebugLogger.i("SyncService", "FileMonitorService stopped from SyncService")
+    }
     
     fun stopSync() {
         workManager.cancelUniqueWork(WORK_NAME)
+        stopFileMonitorService()
         
         context.getSharedPreferences(NativeSyncConfig.PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, false)
             .apply()
         
-        DebugLogger.i("SyncService", "WorkManager sync stopped")
+        DebugLogger.i("SyncService", "WorkManager and FileMonitorService sync stopped")
     }
     
     fun getUnsyncedFilesCount(folderPath: String): Int {

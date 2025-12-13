@@ -59,6 +59,15 @@ class BootReceiver : BroadcastReceiver() {
                 )
                 
                 DebugLogger.i("BootReceiver", "WorkManager sync scheduled")
+                
+                // Start FileMonitorService
+                val intent = Intent(context, com.even.chord.services.FileMonitorService::class.java)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+                DebugLogger.i("BootReceiver", "FileMonitorService started")
             } else {
                 DebugLogger.i("BootReceiver", "sync_active=false, not starting WorkManager")
             }

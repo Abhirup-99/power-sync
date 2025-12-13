@@ -51,5 +51,12 @@
             android:name="androidx.work.impl.foreground.SystemForegroundService"
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
+
+        <!-- FileMonitorService for real-time file monitoring -->
+        <service
+            android:name=".services.FileMonitorService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
+            
     </application>
 </manifest>

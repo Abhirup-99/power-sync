@@ -5,8 +5,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.even.chord.ui.screens.LoginScreen
-import com.even.chord.ui.screens.PermissionsScreen
-import com.even.chord.ui.screens.OnboardingScreen
+import com.even.chord.ui.screens.ConnectDriveScreen
 
 @Composable
 fun NavGraph(
@@ -20,31 +19,24 @@ fun NavGraph(
         composable(Screen.Login.route) {
             LoginScreen(
                 onLoginSuccess = {
-                    navController.navigate(Screen.Permissions.route) {
+                    navController.navigate(Screen.ConnectDrive.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
                 }
             )
         }
         
-        composable(Screen.Permissions.route) {
-            PermissionsScreen(
-                onAllPermissionsGranted = {
-                    navController.navigate(Screen.Onboarding.route) {
-                        popUpTo(Screen.Permissions.route) { inclusive = true }
-                    }
+        composable(Screen.ConnectDrive.route) {
+            ConnectDriveScreen(
+                onFolderSelected = {
+                    navController.navigate(Screen.SyncSelection.route)
                 }
             )
         }
-        
-        composable(Screen.Onboarding.route) {
-            OnboardingScreen(
-                onSignOut = {
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(Screen.Onboarding.route) { inclusive = true }
-                    }
-                }
-            )
+
+        composable(Screen.SyncSelection.route) {
+            // Placeholder for Step 3
+            androidx.compose.material3.Text("Sync Selection Screen (Coming Soon)")
         }
     }
 }

@@ -33,6 +33,12 @@ val Orange50 = Color(0xFFFFF3E0)
 val Orange200 = Color(0xFFFFCC80)
 val Orange700 = Color(0xFFF57C00)
 
+// DriveSync Theme Colors
+val DriveSyncDarkBackground = Color(0xFF0D110F)
+val DriveSyncGreenAccent = Color(0xFF9BD49E)
+val DriveSyncButtonGrey = Color(0xFF262926)
+val DriveSyncTextWhite = Color(0xFFE0E3E0)
+
 private val LightColorScheme = lightColorScheme(
     primary = Primary,
     onPrimary = OnPrimary,

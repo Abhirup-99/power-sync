@@ -40,12 +40,7 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     val user = FirebaseAuth.getInstance().currentUser
                     startDestination = if (user != null) {
-                        // Check if permissions are granted
-                        if (hasRequiredPermissions()) {
-                            Screen.Onboarding.route
-                        } else {
-                            Screen.Permissions.route
-                        }
+                        Screen.ConnectDrive.route
                     } else {
                         Screen.Login.route
                     }
@@ -63,15 +58,6 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-        }
-    }
-    
-    private fun hasRequiredPermissions(): Boolean {
-        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-            android.os.Environment.isExternalStorageManager()
-        } else {
-            checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) == 
-                android.content.pm.PackageManager.PERMISSION_GRANTED
         }
     }
     

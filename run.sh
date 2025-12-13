@@ -7,7 +7,7 @@ set -euo pipefail
 ENVIRONMENT=${1:-staging}
 BUILD_MODE=${2:-debug}
 
-cd "$(dirname "$0")/android"
+
 
 # Validate environment
 case "$ENVIRONMENT" in

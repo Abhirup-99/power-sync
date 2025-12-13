@@ -8,7 +8,7 @@ set -e
 ENVIRONMENT=${1:-staging}
 BUILD_MODE=${2:-debug}
 
-cd "$(dirname "$0")/android"
+
 
 # Validate environment
 case $ENVIRONMENT in
@@ -62,5 +62,5 @@ echo "🔨 Building..."
 
 echo ""
 echo "✅ Build completed successfully!"
-echo "📦 APK Location: android/${APK_PATH}"
+echo "📦 APK Location: ${APK_PATH}"
 echo ""

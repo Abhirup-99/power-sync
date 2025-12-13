@@ -67,17 +67,12 @@ class MainActivity : ComponentActivity() {
     }
     
     private fun hasRequiredPermissions(): Boolean {
-        val hasPhone = checkSelfPermission(android.Manifest.permission.READ_PHONE_STATE) == 
-            android.content.pm.PackageManager.PERMISSION_GRANTED
-        
-        val hasStorage = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             android.os.Environment.isExternalStorageManager()
         } else {
             checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) == 
                 android.content.pm.PackageManager.PERMISSION_GRANTED
         }
-        
-        return hasPhone && hasStorage
     }
     
     override fun onDestroy() {

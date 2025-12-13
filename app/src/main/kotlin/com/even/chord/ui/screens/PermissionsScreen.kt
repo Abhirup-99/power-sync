@@ -54,15 +54,7 @@ fun PermissionsScreen(
     
     val permissionItems = remember {
         listOf(
-            PermissionItem(
-                icon = Icons.Default.Phone,
-                title = "Phone & Call Logs",
-                description = "To backup your call history to the cloud",
-                permissions = listOf(
-                    Manifest.permission.READ_PHONE_STATE,
-                    Manifest.permission.READ_CALL_LOG
-                )
-            ),
+
             PermissionItem(
                 icon = Icons.Default.Folder,
                 title = "Storage & Files",
@@ -99,10 +91,7 @@ fun PermissionsScreen(
     
     // Check permissions on load
     fun checkAllPermissions(): Boolean {
-        val hasPhone = ContextCompat.checkSelfPermission(
-            context, Manifest.permission.READ_PHONE_STATE
-        ) == PermissionChecker.PERMISSION_GRANTED
-        
+
         val hasStorage = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Environment.isExternalStorageManager()
         } else {
@@ -111,19 +100,15 @@ fun PermissionsScreen(
             ) == PermissionChecker.PERMISSION_GRANTED
         }
         
-        return hasPhone && hasStorage
+        // Return only storage status for now (though storage perms also removed in manifest, logic still here for legacy/scope?)
+        // The user asked to drop READ_PHONE_STATE.
+        return hasStorage
     }
     
     fun getDenied(): List<String> {
         val denied = mutableListOf<String>()
         
-        if (ContextCompat.checkSelfPermission(
-                context, Manifest.permission.READ_PHONE_STATE
-            ) != PermissionChecker.PERMISSION_GRANTED
-        ) {
-            denied.add("Phone & Call Logs")
-        }
-        
+
         val hasStorage = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Environment.isExternalStorageManager()
         } else {
@@ -271,10 +256,11 @@ fun PermissionsScreen(
                         manageStorageLauncher.launch(intent)
                     }
                     
-                    // Request other permissions
+                    // Phone permission removed
+                    // val permissionsToRequest = mutableListOf<String>()
                     val permissionsToRequest = mutableListOf<String>()
-                    permissionsToRequest.add(Manifest.permission.READ_PHONE_STATE)
-                    permissionsToRequest.add(Manifest.permission.READ_CALL_LOG)
+                    // permissionsToRequest.add(Manifest.permission.READ_PHONE_STATE)
+                    // permissionsToRequest.add(Manifest.permission.READ_CALL_LOG)
                     
                     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
                         permissionsToRequest.add(Manifest.permission.READ_EXTERNAL_STORAGE)

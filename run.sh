@@ -16,7 +16,7 @@ case "$ENVIRONMENT" in
 esac
 
 # App id per flavor
-BASE_APP_ID="com.even.chord"
+BASE_APP_ID="com.lumaqi.powersync"
 APP_ID="$BASE_APP_ID"
 if [[ "$FLAVOR" == "staging" ]]; then
   APP_ID="${BASE_APP_ID}.staging"
@@ -31,7 +31,7 @@ esac
 
 echo ""
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║                    🚀 Chord Run                            ║"
+echo "║                    🚀 PowerSync Run                        ║"
 echo "╠════════════════════════════════════════════════════════════╣"
 echo "║  Environment:  $ENVIRONMENT"
 echo "║  Build Mode:   $BUILD_MODE"

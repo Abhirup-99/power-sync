@@ -1,4 +1,4 @@
-package com.even.chord.ui.screens
+package com.lumaqi.powersync.ui.screens
 
 import android.content.Context
 import android.content.Intent
@@ -31,10 +31,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.even.chord.NativeSyncConfig
-import com.even.chord.services.GoogleAuthService
-import com.even.chord.services.SyncService
-import com.even.chord.ui.theme.*
+import com.lumaqi.powersync.NativeSyncConfig
+import com.lumaqi.powersync.services.GoogleAuthService
+import com.lumaqi.powersync.services.SyncService
+import com.lumaqi.powersync.ui.theme.*
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

@@ -1,4 +1,4 @@
-package com.even.chord.ui.screens
+package com.lumaqi.powersync.ui.screens
 
 import android.app.Activity
 import android.widget.Toast
@@ -22,8 +22,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.even.chord.services.GoogleAuthService
-import com.even.chord.ui.theme.*
+import com.lumaqi.powersync.services.GoogleAuthService
+import com.lumaqi.powersync.ui.theme.*
 import kotlinx.coroutines.launch
 
 @Composable

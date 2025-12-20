@@ -1,9 +1,9 @@
-package com.even.chord.ui.theme
+package com.lumaqi.powersync.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
@@ -39,43 +39,39 @@ val DriveSyncGreenAccent = Color(0xFF9BD49E)
 val DriveSyncButtonGrey = Color(0xFF262926)
 val DriveSyncTextWhite = Color(0xFFE0E3E0)
 
-private val LightColorScheme = lightColorScheme(
-    primary = Primary,
-    onPrimary = OnPrimary,
-    primaryContainer = Blue50,
-    onPrimaryContainer = Blue900,
-    secondary = Primary,
-    onSecondary = OnPrimary,
-    background = Background,
-    onBackground = OnBackground,
-    surface = Surface,
-    onSurface = OnSurface,
-    error = Error,
-    onError = White,
-    outline = Grey200,
-    outlineVariant = Grey200,
-)
+private val LightColorScheme =
+        lightColorScheme(
+                primary = Primary,
+                onPrimary = OnPrimary,
+                primaryContainer = Blue50,
+                onPrimaryContainer = Blue900,
+                secondary = Primary,
+                onSecondary = OnPrimary,
+                background = Background,
+                onBackground = OnBackground,
+                surface = Surface,
+                onSurface = OnSurface,
+                error = Error,
+                onError = White,
+                outline = Grey200,
+                outlineVariant = Grey200,
+        )
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Primary,
-    onPrimary = OnPrimary,
-    background = SurfaceDark,
-    onBackground = White,
-    surface = SurfaceDark,
-    onSurface = White,
-    error = Error,
-    onError = White,
-)
+private val DarkColorScheme =
+        darkColorScheme(
+                primary = Primary,
+                onPrimary = OnPrimary,
+                background = SurfaceDark,
+                onBackground = White,
+                surface = SurfaceDark,
+                onSurface = White,
+                error = Error,
+                onError = White,
+        )
 
 @Composable
-fun ChordTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    content: @Composable () -> Unit
-) {
+fun PowerSyncTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        content = content
-    )
+    MaterialTheme(colorScheme = colorScheme, content = content)
 }

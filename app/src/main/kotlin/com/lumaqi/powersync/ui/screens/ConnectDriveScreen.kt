@@ -1,4 +1,4 @@
-package com.even.chord.ui.screens
+package com.lumaqi.powersync.ui.screens
 
 import android.content.Context
 import android.net.Uri
@@ -23,8 +23,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.even.chord.NativeSyncConfig
-import com.even.chord.ui.theme.*
+import com.lumaqi.powersync.NativeSyncConfig
+import com.lumaqi.powersync.ui.theme.*
 
 @Composable
 fun ConnectDriveScreen(

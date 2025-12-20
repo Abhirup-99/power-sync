@@ -1,18 +1,18 @@
-package com.even.chord
+package com.lumaqi.powersync
 
 import android.app.Application
 import com.google.firebase.FirebaseApp
 
-class ChordApplication : Application() {
-    
+class PowerSyncApplication : Application() {
+
     override fun onCreate() {
         super.onCreate()
-        
+
         // Initialize Firebase
         FirebaseApp.initializeApp(this)
-        
+
         // Initialize debug logger
         DebugLogger.initialize(this)
-        DebugLogger.i("ChordApplication", "Application started")
+        DebugLogger.i("PowerSyncApplication", "Application started")
     }
 }

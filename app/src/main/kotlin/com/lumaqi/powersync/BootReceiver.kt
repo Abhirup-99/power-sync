@@ -1,4 +1,4 @@
-package com.even.chord
+package com.lumaqi.powersync
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -61,7 +61,7 @@ class BootReceiver : BroadcastReceiver() {
                 DebugLogger.i("BootReceiver", "WorkManager sync scheduled")
                 
                 // Start FileMonitorService
-                val intent = Intent(context, com.even.chord.services.FileMonitorService::class.java)
+                val intent = Intent(context, com.lumaqi.powersync.services.FileMonitorService::class.java)
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                     context.startForegroundService(intent)
                 } else {

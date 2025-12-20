@@ -38,10 +38,6 @@ app/profile
 app/release
 
 # Google Services
-app/google-services.json
-app/src/dev/google-services.json
-app/src/staging/google-services.json
-app/src/prod/google-services.json
 
 # Keystore files
 *.keystore

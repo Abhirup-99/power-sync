@@ -1,11 +1,11 @@
-package com.even.chord.ui.navigation
+package com.lumaqi.powersync.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.even.chord.ui.screens.LoginScreen
-import com.even.chord.ui.screens.ConnectDriveScreen
+import com.lumaqi.powersync.ui.screens.LoginScreen
+import com.lumaqi.powersync.ui.screens.ConnectDriveScreen
 
 @Composable
 fun NavGraph(

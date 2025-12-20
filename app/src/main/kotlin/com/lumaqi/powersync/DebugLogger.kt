@@ -1,4 +1,4 @@
-package com.even.chord
+package com.lumaqi.powersync
 
 import android.content.Context
 import android.util.Log
@@ -9,26 +9,24 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Debug logging utility that writes logs to a file for debugging.
- * Logs are written to the app's documents directory (same as Dart) for unified logging.
+ * Debug logging utility that writes logs to a file for debugging. Logs are written to the app's
+ * documents directory (same as Dart) for unified logging.
  */
 object DebugLogger {
-    private const val LOG_FILE_NAME = "chord_debug_log.txt"
+    private const val LOG_FILE_NAME = "powersync_debug_log.txt"
     private const val MAX_LOG_SIZE_BYTES = 5 * 1024 * 1024L // 5MB
-    
+
     private var isEnabled = false
     private var logFile: File? = null
     private var context: Context? = null
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS", Locale.US)
-    
-    /**
-     * Initialize the debug logger with context
-     */
+
+    /** Initialize the debug logger with context */
     fun initialize(context: Context) {
         this.context = context
         val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
         isEnabled = prefs.getBoolean("flutter.debug_mode_enabled", false)
-        
+
         if (isEnabled) {
             // Use the same documents directory as Dart for unified logs
             val documentsDir = File(context.filesDir.parentFile, "app_flutter")
@@ -39,17 +37,15 @@ object DebugLogger {
             rotateLogIfNeeded()
         }
     }
-    
-    /**
-     * Enable or disable logging
-     */
+
+    /** Enable or disable logging */
     fun setEnabled(enabled: Boolean, context: Context) {
         isEnabled = enabled
         this.context = context
-        
+
         val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
         prefs.edit().putBoolean("flutter.debug_mode_enabled", enabled).apply()
-        
+
         if (enabled) {
             // Use the same documents directory as Dart for unified logs
             val documentsDir = File(context.filesDir.parentFile, "app_flutter")
@@ -61,10 +57,8 @@ object DebugLogger {
             log("DebugLogger", "Kotlin debug logging enabled")
         }
     }
-    
-    /**
-     * Rotate log file if it's too large
-     */
+
+    /** Rotate log file if it's too large */
     private fun rotateLogIfNeeded() {
         try {
             logFile?.let { file ->
@@ -79,74 +73,61 @@ object DebugLogger {
             Log.e("DebugLogger", "Failed to rotate log file", e)
         }
     }
-    
-    /**
-     * Log a message at INFO level
-     */
+
+    /** Log a message at INFO level */
     fun i(tag: String, message: String) {
         log(tag, message, "INFO")
     }
-    
-    /**
-     * Log a message at WARNING level
-     */
+
+    /** Log a message at WARNING level */
     fun w(tag: String, message: String) {
         log(tag, message, "WARN")
     }
-    
-    /**
-     * Log a message at ERROR level
-     */
+
+    /** Log a message at ERROR level */
     fun e(tag: String, message: String, throwable: Throwable? = null) {
-        val fullMessage = if (throwable != null) {
-            "$message: ${throwable.message}\n${throwable.stackTraceToString()}"
-        } else {
-            message
-        }
+        val fullMessage =
+                if (throwable != null) {
+                    "$message: ${throwable.message}\n${throwable.stackTraceToString()}"
+                } else {
+                    message
+                }
         log(tag, fullMessage, "ERROR")
     }
-    
-    /**
-     * Core logging function - only logs when debug mode is enabled
-     */
+
+    /** Core logging function - only logs when debug mode is enabled */
     fun log(tag: String, message: String, level: String = "INFO") {
         // Only log if debug mode is enabled
         if (!isEnabled) return
-        
+
         // Log to Android logcat
         when (level) {
             "ERROR" -> Log.e(tag, message)
             "WARN" -> Log.w(tag, message)
             else -> Log.i(tag, message)
         }
-        
+
         // Write to file (same file as Dart uses)
         try {
             logFile?.let { file ->
                 val timestamp = dateFormat.format(Date())
                 val logLine = "$timestamp [$level] [$tag] $message\n"
-                
+
                 synchronized(this) {
-                    FileWriter(file, true).use { writer ->
-                        writer.append(logLine)
-                    }
+                    FileWriter(file, true).use { writer -> writer.append(logLine) }
                 }
             }
         } catch (e: Exception) {
             Log.e("DebugLogger", "Failed to write log to file", e)
         }
     }
-    
-    /**
-     * Get the log file path
-     */
+
+    /** Get the log file path */
     fun getLogFilePath(): String? {
         return logFile?.absolutePath
     }
-    
-    /**
-     * Get log file contents
-     */
+
+    /** Get log file contents */
     fun getLogContents(): String {
         return try {
             logFile?.readText() ?: "No log file found"
@@ -154,10 +135,8 @@ object DebugLogger {
             "Error reading log file: ${e.message}"
         }
     }
-    
-    /**
-     * Clear the log file
-     */
+
+    /** Clear the log file */
     fun clearLogs() {
         try {
             logFile?.let { file ->

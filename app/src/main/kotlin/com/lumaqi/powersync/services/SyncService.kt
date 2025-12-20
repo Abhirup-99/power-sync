@@ -1,12 +1,12 @@
-package com.even.chord.services
+package com.lumaqi.powersync.services
 
 import android.content.Context
 import android.content.Intent
 import androidx.work.*
-import com.even.chord.DebugLogger
-import com.even.chord.NativeSyncConfig
-import com.even.chord.NativeSyncDatabase
-import com.even.chord.SyncWorker
+import com.lumaqi.powersync.DebugLogger
+import com.lumaqi.powersync.NativeSyncConfig
+import com.lumaqi.powersync.NativeSyncDatabase
+import com.lumaqi.powersync.SyncWorker
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.Dispatchers

@@ -1,4 +1,4 @@
-package com.even.chord.ui.navigation
+package com.lumaqi.powersync.ui.navigation
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")

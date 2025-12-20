@@ -41,7 +41,7 @@ esac
 
 echo ""
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║                    🔨 Chord Build                          ║"
+echo "║                    🔨 PowerSync Build                      ║"
 echo "╠════════════════════════════════════════════════════════════╣"
 echo "║  Environment:  $ENVIRONMENT"
 echo "║  Build Mode:   $BUILD_MODE"

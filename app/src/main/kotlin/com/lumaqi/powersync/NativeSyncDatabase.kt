@@ -1,4 +1,4 @@
-package com.even.chord
+package com.lumaqi.powersync
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase

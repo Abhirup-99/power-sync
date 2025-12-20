@@ -1,15 +1,15 @@
-package com.even.chord.services
+package com.lumaqi.powersync.services
 
 import android.content.Context
 import android.content.Intent
-import com.even.chord.DebugLogger
-import com.even.chord.NativeSyncConfig
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
+import com.lumaqi.powersync.DebugLogger
+import com.lumaqi.powersync.NativeSyncConfig
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
@@ -44,15 +44,20 @@ class GoogleAuthService(private val context: Context) {
     }
 
     private fun getWebClientId(): String {
-        // This should match your Firebase project's web client ID
-        // Get it from google-services.json or Firebase console
-        return context.getString(
+        val resId =
                 context.resources.getIdentifier(
                         "default_web_client_id",
                         "string",
                         context.packageName
                 )
-        )
+        if (resId == 0) {
+            DebugLogger.e(
+                    "GoogleAuthService",
+                    "Could not find default_web_client_id resource. Google Sign-In will not work."
+            )
+            return ""
+        }
+        return context.getString(resId)
     }
 
     fun isSignedIn(): Boolean {

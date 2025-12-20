@@ -1,4 +1,4 @@
-package com.even.chord.services
+package com.lumaqi.powersync.services
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -11,8 +11,8 @@ import android.os.Build
 import android.os.FileObserver
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import com.even.chord.DebugLogger
-import com.even.chord.NativeSyncConfig
+import com.lumaqi.powersync.DebugLogger
+import com.lumaqi.powersync.NativeSyncConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

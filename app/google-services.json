@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "13733503780",
+    "project_id": "powersync-cc7d7",
+    "storage_bucket": "powersync-cc7d7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:13733503780:android:57bd7333a968621a2d09b1",
+        "android_client_info": {
+          "package_name": "com.lumaqi.powersync"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "13733503780-agnoh5494bvckdqc31lo3l54409sdc99.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.lumaqi.powersync",
+            "certificate_hash": "40e2409702b5cfbdeca5f4683ac707e2e13d5244"
+          }
+        },
+        {
+          "client_id": "13733503780-7t0ht8lucudob9b5u8e6mjabhrkomam9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDu_ISCuaUShTB0fH0yuMCCPb4P11bccsk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "13733503780-7t0ht8lucudob9b5u8e6mjabhrkomam9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

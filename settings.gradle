@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Chord"
+rootProject.name = "PowerSync"
 include ':app'

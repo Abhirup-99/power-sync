@@ -1,6 +1,5 @@
-package com.even.chord
+package com.lumaqi.powersync
 
-import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -15,52 +14,47 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.navigation.compose.rememberNavController
-import com.even.chord.ui.navigation.NavGraph
-import com.even.chord.ui.navigation.Screen
-import com.even.chord.ui.theme.ChordTheme
 import com.google.firebase.auth.FirebaseAuth
+import com.lumaqi.powersync.ui.navigation.NavGraph
+import com.lumaqi.powersync.ui.navigation.Screen
+import com.lumaqi.powersync.ui.theme.PowerSyncTheme
 
 class MainActivity : ComponentActivity() {
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         // Initialize debug logger
         DebugLogger.initialize(applicationContext)
         DebugLogger.i("MainActivity", "onCreate called")
-        
+
         enableEdgeToEdge()
-        
+
         setContent {
-            ChordTheme(darkTheme = false) {
+            PowerSyncTheme(darkTheme = false) {
                 val navController = rememberNavController()
                 var startDestination by remember { mutableStateOf<String?>(null) }
-                
+
                 // Determine start destination based on auth state
                 LaunchedEffect(Unit) {
                     val user = FirebaseAuth.getInstance().currentUser
-                    startDestination = if (user != null) {
-                        Screen.ConnectDrive.route
-                    } else {
-                        Screen.Login.route
-                    }
+                    startDestination =
+                            if (user != null) {
+                                Screen.ConnectDrive.route
+                            } else {
+                                Screen.Login.route
+                            }
                 }
-                
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = Color.White
-                ) {
+
+                Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
                     startDestination?.let { destination ->
-                        NavGraph(
-                            navController = navController,
-                            startDestination = destination
-                        )
+                        NavGraph(navController = navController, startDestination = destination)
                     }
                 }
             }
         }
     }
-    
+
     override fun onDestroy() {
         DebugLogger.i("MainActivity", "onDestroy called")
         super.onDestroy()

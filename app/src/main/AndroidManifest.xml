@@ -14,11 +14,11 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
 
     <application
-        android:name=".ChordApplication"
+        android:name=".PowerSyncApplication"
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Chord"
+        android:theme="@style/Theme.PowerSync"
         android:usesCleartextTraffic="true"
         tools:targetApi="34">
         
@@ -26,7 +26,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
-            android:theme="@style/Theme.Chord">
+            android:theme="@style/Theme.PowerSync">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

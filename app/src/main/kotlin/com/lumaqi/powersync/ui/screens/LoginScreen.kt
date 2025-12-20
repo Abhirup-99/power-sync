@@ -5,12 +5,13 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.outlined.Help
-import androidx.compose.material.icons.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.Help
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,10 +19,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lumaqi.powersync.R
 import com.lumaqi.powersync.services.GoogleAuthService
 import com.lumaqi.powersync.ui.theme.*
 import kotlinx.coroutines.launch
@@ -60,14 +63,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 }
             }
 
-    // Check if already signed in
-    LaunchedEffect(Unit) {
-        if (authService.isSignedIn()) {
-            onLoginSuccess()
-        }
-    }
-
-    Surface(modifier = Modifier.fillMaxSize(), color = DriveSyncDarkBackground) {
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(modifier = Modifier.fillMaxSize().padding(24.dp)) {
             // Top Bar
             Row(
@@ -77,28 +73,27 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                        text = "DriveSync",
+                        text = "AutoSync",
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
-                        color = DriveSyncGreenAccent
+                        color = MaterialTheme.colorScheme.primary
                 )
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { /* TODO: Help */}) {
                         Icon(
                                 imageVector =
-                                        Icons.Outlined
-                                                .HelpOutline, // Need to make sure this exists or
-                                // use QuestionMark
+                                        Icons.AutoMirrored.Outlined
+                                                .HelpOutline,
                                 contentDescription = "Help",
-                                tint = Color.White
+                                tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                     IconButton(onClick = { /* TODO: Menu */}) {
                         Icon(
                                 imageVector = Icons.Default.MoreVert,
                                 contentDescription = "Menu",
-                                tint = Color.White
+                                tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                 }
@@ -110,11 +105,20 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
             ) {
+                // App Logo
+                Image(
+                        painter = painterResource(id = R.drawable.logo),
+                        contentDescription = "App Logo",
+                        modifier = Modifier.size(120.dp)
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
                 Text(
                         text = "Keep Your Data in Sync",
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White.copy(alpha = 0.9f),
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.9f),
                         textAlign = TextAlign.Center
                 )
 
@@ -132,15 +136,15 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                         colors =
                                 ButtonDefaults.buttonColors(
-                                        containerColor = DriveSyncGreenAccent,
-                                        contentColor = Color.Black
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary
                                 ),
                         shape = RoundedCornerShape(28.dp) // Capsule shape
                 ) {
                     if (isLoading) {
                         CircularProgressIndicator(
                                 modifier = Modifier.size(24.dp),
-                                color = Color.Black,
+                                color = MaterialTheme.colorScheme.onPrimary,
                                 strokeWidth = 2.dp
                         )
                     } else {
@@ -153,31 +157,6 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-
-                // Choose what to sync Button
-
-                // Choose what to sync Button - Removed for linear flow
-                /*
-                Button(
-                    onClick = {
-                        Toast.makeText(context, "Please sign in first", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = DriveSyncButtonGrey,
-                        contentColor = Color.White.copy(alpha = 0.7f)
-                    ),
-                    shape = RoundedCornerShape(28.dp)
-                ) {
-                    Text(
-                        text = "Choose what to sync",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Normal
-                    )
-                }
-                */
             }
 
             // Bottom Link
@@ -192,16 +171,16 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             ) {
                 Icon(
                         imageVector =
-                                Icons.Outlined.Help, // Using Help instead of QuestionMark if needed
+                                Icons.AutoMirrored.Outlined.Help,
                         contentDescription = null,
-                        tint = DriveSyncGreenAccent,
+                        tint = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                         text = "Online User's Guide",
                         fontSize = 14.sp,
-                        color = DriveSyncGreenAccent,
+                        color = MaterialTheme.colorScheme.secondary,
                         style =
                                 MaterialTheme.typography.bodyMedium.copy(
                                         textDecoration =

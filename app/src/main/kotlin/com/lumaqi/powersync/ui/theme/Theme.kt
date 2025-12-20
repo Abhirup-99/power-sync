@@ -9,6 +9,8 @@ import androidx.compose.ui.graphics.Color
 
 // Colors from Flutter design
 val Primary = Color(0xFF4285F4)
+val Secondary = Color(0xFF34A853)
+val Tertiary = Color(0xFFFBBC05)
 val PrimaryDark = Color(0xFF3367D6)
 val White = Color(0xFFFFFFFF)
 val Background = Color(0xFFFFFFFF)
@@ -45,8 +47,10 @@ private val LightColorScheme =
                 onPrimary = OnPrimary,
                 primaryContainer = Blue50,
                 onPrimaryContainer = Blue900,
-                secondary = Primary,
-                onSecondary = OnPrimary,
+                secondary = Secondary,
+                onSecondary = White,
+                tertiary = Tertiary,
+                onTertiary = Color.Black,
                 background = Background,
                 onBackground = OnBackground,
                 surface = Surface,
@@ -61,6 +65,10 @@ private val DarkColorScheme =
         darkColorScheme(
                 primary = Primary,
                 onPrimary = OnPrimary,
+                secondary = Secondary,
+                onSecondary = White,
+                tertiary = Tertiary,
+                onTertiary = Color.Black,
                 background = SurfaceDark,
                 onBackground = White,
                 surface = SurfaceDark,

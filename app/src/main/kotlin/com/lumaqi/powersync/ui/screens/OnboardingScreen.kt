@@ -36,7 +36,9 @@ import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
 import com.lumaqi.powersync.NativeSyncConfig
 import com.lumaqi.powersync.services.GoogleAuthService
+import com.lumaqi.powersync.services.GoogleDriveService
 import com.lumaqi.powersync.services.SyncService
+import com.lumaqi.powersync.ui.components.DriveFolderPickerDialog
 import com.lumaqi.powersync.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -51,6 +53,8 @@ fun OnboardingScreen(onFolderSelected: () -> Unit, onSignOut: () -> Unit) {
     val syncService = remember { SyncService(context) }
 
     var folderPath by remember { mutableStateOf<String?>(null) }
+    var driveFolderName by remember { mutableStateOf<String?>(null) }
+    var showDriveFolderPicker by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(true) }
     var isSyncing by remember { mutableStateOf(false) }
     var uploadedCount by remember { mutableStateOf(0) }
@@ -66,6 +70,7 @@ fun OnboardingScreen(onFolderSelected: () -> Unit, onSignOut: () -> Unit) {
     LaunchedEffect(Unit) {
         val prefs = context.getSharedPreferences(NativeSyncConfig.PREFS_NAME, Context.MODE_PRIVATE)
         folderPath = prefs.getString(NativeSyncConfig.KEY_SYNC_FOLDER_PATH, null)
+        driveFolderName = prefs.getString(NativeSyncConfig.KEY_DRIVE_FOLDER_NAME, null)
         autoSyncActive = prefs.getBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, false)
 
         val lastSyncString = prefs.getString(NativeSyncConfig.KEY_LAST_SYNC_TIME, null)
@@ -146,6 +151,14 @@ fun OnboardingScreen(onFolderSelected: () -> Unit, onSignOut: () -> Unit) {
                                 onSignOut()
                             }
                         }
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Drive Folder selection card
+                DriveFolderSelectionCard(
+                        driveFolderName = driveFolderName,
+                        onPickDriveFolder = { showDriveFolderPicker = true }
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -270,6 +283,59 @@ fun OnboardingScreen(onFolderSelected: () -> Unit, onSignOut: () -> Unit) {
                             }
                         }
                 )
+            }
+        }
+    }
+
+    if (showDriveFolderPicker) {
+        val driveService = remember { GoogleDriveService(context) }
+        DriveFolderPickerDialog(
+                driveService = driveService,
+                onDismissRequest = { showDriveFolderPicker = false },
+                onFolderSelected = { id, name ->
+                    driveFolderName = name
+                    val prefs =
+                            context.getSharedPreferences(
+                                    NativeSyncConfig.PREFS_NAME,
+                                    Context.MODE_PRIVATE
+                            )
+                    prefs.edit()
+                            .putString(NativeSyncConfig.KEY_DRIVE_FOLDER_ID, id)
+                            .putString(NativeSyncConfig.KEY_DRIVE_FOLDER_NAME, name)
+                            .apply()
+                    showDriveFolderPicker = false
+                }
+        )
+    }
+}
+
+@Composable
+private fun DriveFolderSelectionCard(driveFolderName: String?, onPickDriveFolder: () -> Unit) {
+    Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = ButtonDefaults.outlinedButtonBorder
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+            Text(
+                    text = "Drive Destination",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = Grey900
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Select folder button
+            OutlinedButton(
+                    onClick = onPickDriveFolder,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Rounded.FolderOpen, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(driveFolderName ?: "Select Drive Folder (Default: PowerSync)")
             }
         }
     }

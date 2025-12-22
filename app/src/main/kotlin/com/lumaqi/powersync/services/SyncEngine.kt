@@ -91,10 +91,32 @@ class SyncEngine(private val context: Context) {
                     val successfulUploads = mutableListOf<Pair<File, String>>()
                     onProgress?.invoke(0, unsyncedFiles.size)
 
-                    // Ensure "PowerSync" folder exists
-                    DebugLogger.i("SyncEngine", "Ensuring 'PowerSync' folder exists on Drive")
+                    // Get target Drive folder
+                    DebugLogger.i("SyncEngine", "Determining target Drive folder")
+                    val prefs =
+                            context.getSharedPreferences(
+                                    NativeSyncConfig.PREFS_NAME,
+                                    Context.MODE_PRIVATE
+                            )
+                    val configuredFolderId =
+                            prefs.getString(NativeSyncConfig.KEY_DRIVE_FOLDER_ID, null)
+
                     val parentFolderId =
-                            folderMutex.withLock { getOrCreateFolder(driveService, "PowerSync") }
+                            if (!configuredFolderId.isNullOrEmpty()) {
+                                DebugLogger.i(
+                                        "SyncEngine",
+                                        "Using configured folder ID: $configuredFolderId"
+                                )
+                                configuredFolderId
+                            } else {
+                                DebugLogger.i(
+                                        "SyncEngine",
+                                        "No folder configured, using default 'PowerSync' folder"
+                                )
+                                folderMutex.withLock {
+                                    getOrCreateFolder(driveService, "PowerSync")
+                                }
+                            }
                     DebugLogger.i("SyncEngine", "Parent folder ID: $parentFolderId")
 
                     unsyncedFiles.forEachIndexed { index, file ->

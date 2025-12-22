@@ -24,6 +24,10 @@ object NativeSyncConfig {
     const val SYNC_INTERVAL_MINUTES = 15L // Android minimum for WorkManager
     const val UPLOAD_TIMEOUT_SECONDS = 60L
 
+    // Google Drive Configuration
+    const val KEY_DRIVE_FOLDER_ID = "drive_folder_id"
+    const val KEY_DRIVE_FOLDER_NAME = "drive_folder_name"
+
     // Firebase Storage
     const val STORAGE_BASE_PATH = "powersync"
     const val STORAGE_RECORDINGS_FOLDER = "Recordings"

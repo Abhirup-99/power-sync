@@ -2,10 +2,6 @@ package com.lumaqi.powersync
 
 /** Configuration constants for the app. Updated for pure Kotlin Android (no Flutter prefixes). */
 object NativeSyncConfig {
-    // API Configuration
-    const val API_BASE_URL = "https://api.even.in"
-    const val API_UPLOAD_ENDPOINT = "/app-internal/upload-recording"
-
     // SharedPreferences
     const val PREFS_NAME = "powersync_prefs"
     const val KEY_SYNC_ACTIVE = "sync_active"

@@ -32,6 +32,8 @@ import com.lumaqi.powersync.services.GoogleAuthService
 import com.lumaqi.powersync.ui.theme.*
 import kotlinx.coroutines.launch
 
+import com.lumaqi.powersync.DebugLogger
+
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit) {
     val context = LocalContext.current
@@ -44,24 +46,30 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.StartActivityForResult()
             ) { result ->
+                DebugLogger.i("LoginScreen", "Activity result received: ${result.resultCode}")
                 if (result.resultCode == Activity.RESULT_OK) {
                     scope.launch {
                         isLoading = true
                         try {
+                            DebugLogger.i("LoginScreen", "Processing sign-in result")
                             val success = authService.handleSignInResult(result.data)
                             if (success) {
+                                DebugLogger.i("LoginScreen", "Sign-in successful, navigating")
                                 onLoginSuccess()
                             } else {
+                                DebugLogger.w("LoginScreen", "Sign-in returned false")
                                 Toast.makeText(context, "Sign in failed", Toast.LENGTH_SHORT).show()
+                                isLoading = false // Reset loading on failure
                             }
                         } catch (e: Exception) {
+                            DebugLogger.e("LoginScreen", "Sign-in exception", e)
                             val message = "Sign in failed: ${e.message}"
                             Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-                        } finally {
-                            isLoading = false
+                            isLoading = false // Reset loading on error
                         }
                     }
                 } else {
+                    DebugLogger.w("LoginScreen", "Activity result not OK: ${result.resultCode}")
                     isLoading = false
                 }
             }
@@ -148,9 +156,15 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     Button(
                             onClick = {
                                 if (!isLoading) {
+                                    DebugLogger.i("LoginScreen", "Connect button clicked")
                                     isLoading = true
-                                    val signInIntent = authService.getSignInIntent()
-                                    launcher.launch(signInIntent)
+                                    try {
+                                        val signInIntent = authService.getSignInIntent()
+                                        launcher.launch(signInIntent)
+                                    } catch (e: Exception) {
+                                        DebugLogger.e("LoginScreen", "Failed to launch sign-in", e)
+                                        isLoading = false
+                                    }
                                 }
                             },
                             modifier = Modifier.fillMaxWidth().height(56.dp),

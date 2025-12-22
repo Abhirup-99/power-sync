@@ -97,15 +97,15 @@ object DebugLogger {
 
     /** Core logging function - only logs when debug mode is enabled */
     fun log(tag: String, message: String, level: String = "INFO") {
-        // Only log if debug mode is enabled
-        if (!isEnabled) return
-
-        // Log to Android logcat
+        // ALWAYS Log to Android logcat for debugging
         when (level) {
             "ERROR" -> Log.e(tag, message)
             "WARN" -> Log.w(tag, message)
             else -> Log.i(tag, message)
         }
+
+        // Only write to file if debug mode is enabled
+        if (!isEnabled) return
 
         // Write to file (same file as Dart uses)
         try {

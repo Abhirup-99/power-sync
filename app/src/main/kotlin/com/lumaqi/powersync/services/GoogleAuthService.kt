@@ -14,28 +14,24 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 
 class GoogleAuthService(private val context: Context) {
 
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
     private val googleSignInClient: GoogleSignInClient
-    private val httpClient =
-            OkHttpClient.Builder()
-                    .connectTimeout(30, TimeUnit.SECONDS)
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .build()
 
     init {
+        DebugLogger.i("GoogleAuthService", "Initializing GoogleAuthService")
+        val clientId = getWebClientId()
+        DebugLogger.i("GoogleAuthService", "Web Client ID found: ${clientId.isNotEmpty()}")
+        
         val gso =
                 GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                        .requestIdToken(getWebClientId())
+                        .requestIdToken(clientId)
                         .requestEmail()
                         .requestScopes(
                                 com.google.android.gms.common.api.Scope(
-                                        "https://www.googleapis.com/auth/drive.file"
+                                        "https://www.googleapis.com/auth/drive"
                                 )
                         )
                         .build()
@@ -65,28 +61,34 @@ class GoogleAuthService(private val context: Context) {
     }
 
     fun getSignInIntent(): Intent {
+        DebugLogger.i("GoogleAuthService", "Getting sign-in intent")
         // Sign out first to ensure account picker shows
         googleSignInClient.signOut()
         return googleSignInClient.signInIntent
     }
 
     suspend fun handleSignInResult(data: Intent?): Boolean {
+        DebugLogger.i("GoogleAuthService", "Handling sign-in result")
         return withContext(Dispatchers.IO) {
             try {
                 val task = GoogleSignIn.getSignedInAccountFromIntent(data)
                 val account = task.getResult(ApiException::class.java)
+                DebugLogger.i("GoogleAuthService", "Google Account retrieved: ${account.email}")
 
                 // Get Firebase credential
                 val credential = GoogleAuthProvider.getCredential(account.idToken, null)
+                DebugLogger.i("GoogleAuthService", "Firebase credential created")
+                
                 val authResult = auth.signInWithCredential(credential).await()
+                DebugLogger.i("GoogleAuthService", "Firebase sign-in complete. User: ${authResult.user?.uid}")
 
-                // Upsert user to API
-                authResult.user?.let { user -> upsertUser(user) }
+                // Upsert user to API (Removed)
+                // authResult.user?.let { user -> upsertUser(user) }
 
                 DebugLogger.i("GoogleAuthService", "Sign in successful for ${account.email}")
                 true
             } catch (e: ApiException) {
-                DebugLogger.e("GoogleAuthService", "Google sign in failed", e)
+                DebugLogger.e("GoogleAuthService", "Google sign in failed code=${e.statusCode}", e)
                 throw Exception("Google sign in failed: ${e.statusCode}")
             } catch (e: Exception) {
                 DebugLogger.e("GoogleAuthService", "Sign in error", e)
@@ -95,26 +97,8 @@ class GoogleAuthService(private val context: Context) {
         }
     }
 
-    private suspend fun upsertUser(user: com.google.firebase.auth.FirebaseUser) {
-        try {
-            val idToken = user.getIdToken(false).await().token ?: return
-
-            val request =
-                    Request.Builder()
-                            .url("${NativeSyncConfig.API_BASE_URL}/app-internal/upsert-user")
-                            .addHeader("Authorization", "Bearer $idToken")
-                            .post(ByteArray(0).toRequestBody())
-                            .build()
-
-            httpClient.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    DebugLogger.i("GoogleAuthService", "User upserted successfully")
-                }
-            }
-        } catch (e: Exception) {
-            // Silent failure - upsert is best-effort
-            DebugLogger.w("GoogleAuthService", "User upsert failed: ${e.message}")
-        }
+    private fun upsertUser(user: com.google.firebase.auth.FirebaseUser) {
+        // No-op: API removed
     }
 
     suspend fun signOut() {

@@ -7,129 +7,69 @@ import com.lumaqi.powersync.DebugLogger
 import com.lumaqi.powersync.NativeSyncConfig
 import com.lumaqi.powersync.NativeSyncDatabase
 import com.lumaqi.powersync.SyncWorker
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.storage.FirebaseStorage
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.tasks.await
-import kotlinx.coroutines.withContext
-import java.io.File
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class SyncService(private val context: Context) {
-    
+
     private val database = NativeSyncDatabase(context)
-    private val storage = FirebaseStorage.getInstance()
-    private val auth = FirebaseAuth.getInstance()
     private val workManager = WorkManager.getInstance(context)
-    
+    private val syncEngine = SyncEngine(context)
+
     companion object {
         private const val WORK_NAME = "sync_work"
     }
-    
+
     suspend fun performSync(
-        folderPath: String,
-        startBackgroundService: Boolean,
-        onProgress: (uploaded: Int, total: Int) -> Unit
-    ) {
-        withContext(Dispatchers.IO) {
-            val user = auth.currentUser ?: throw Exception("Not authenticated")
-            val userEmail = user.email ?: throw Exception("No email")
-            
+            folderPath: String,
+            startBackgroundService: Boolean,
+            onProgress: (uploaded: Int, total: Int) -> Unit
+    ): Int {
+        DebugLogger.i(
+                "SyncService",
+                "performSync called with folderPath: $folderPath, startBackgroundService: $startBackgroundService"
+        )
+        return withContext(Dispatchers.IO) {
             // Save folder path
-            val prefs = context.getSharedPreferences(NativeSyncConfig.PREFS_NAME, Context.MODE_PRIVATE)
+            val prefs =
+                    context.getSharedPreferences(NativeSyncConfig.PREFS_NAME, Context.MODE_PRIVATE)
             prefs.edit().putString(NativeSyncConfig.KEY_SYNC_FOLDER_PATH, folderPath).apply()
-            
-            // Get unsynced files
-            val unsyncedFiles = database.getUnsyncedFiles(folderPath)
-            
-            if (unsyncedFiles.isEmpty()) {
-                updateLastSyncTime()
-                return@withContext
-            }
-            
-            DebugLogger.i("SyncService", "Found ${unsyncedFiles.size} files to sync")
-            
-            var successCount = 0
-            onProgress(0, unsyncedFiles.size)
-            
-            unsyncedFiles.forEachIndexed { _, file ->
-                val storagePath = uploadToFirebase(file, userEmail)
-                if (storagePath != null) {
-                    database.markAsSynced(
-                        file.absolutePath,
-                        NativeSyncConfig.STORAGE_RECORDINGS_FOLDER,
-                        storagePath
-                    )
-                    successCount++
-                }
-                onProgress(successCount, unsyncedFiles.size)
-            }
-            
-            updateLastSyncTime()
-            
+            DebugLogger.i("SyncService", "Saved folder path to prefs")
+
+            // Delegate to SyncEngine
+            DebugLogger.i("SyncService", "Delegating to SyncEngine.performSync")
+            val result = syncEngine.performSync(folderPath, onProgress)
+            DebugLogger.i("SyncService", "SyncEngine.performSync result: $result")
+
             if (startBackgroundService) {
-                // Determine if we need to start WorkManager or if we just want to ensure FileMonitorService
-                // But generally startBackgroundService=true implies "Turn on all background sync mechanisms"
+                DebugLogger.i("SyncService", "Starting background services")
                 startWorkManager()
                 startFileMonitorService()
                 prefs.edit().putBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, true).apply()
             }
-            
-            DebugLogger.i("SyncService", "Sync completed: $successCount/${unsyncedFiles.size} files")
+            result
         }
     }
-    
-    private suspend fun uploadToFirebase(file: File, userEmail: String): String? {
-        return try {
-            val storagePath = "${NativeSyncConfig.STORAGE_BASE_PATH}/$userEmail/${NativeSyncConfig.STORAGE_RECORDINGS_FOLDER}/${file.name}"
-            val storageRef = storage.reference.child(storagePath)
-            
-            // Check if file already exists with same size
-            try {
-                val metadata = storageRef.metadata.await()
-                if (metadata.sizeBytes == file.length()) {
-                    DebugLogger.i("SyncService", "File already exists: ${file.name}")
-                    return storagePath
-                }
-            } catch (e: Exception) {
-                // File doesn't exist, continue with upload
-            }
-            
-            // Upload file
-            val uri = android.net.Uri.fromFile(file)
-            storageRef.putFile(uri).await()
-            
-            storagePath
-        } catch (e: Exception) {
-            DebugLogger.e("SyncService", "Upload failed: ${file.name}", e)
-            null
-        }
-    }
-    
-    private fun updateLastSyncTime() {
-        context.getSharedPreferences(NativeSyncConfig.PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(NativeSyncConfig.KEY_LAST_SYNC_TIME, java.util.Date().toString())
-            .apply()
-    }
-    
+
     private fun startWorkManager() {
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
-        
-        val workRequest = PeriodicWorkRequestBuilder<SyncWorker>(
-            NativeSyncConfig.SYNC_INTERVAL_MINUTES, TimeUnit.MINUTES
-        )
-            .setConstraints(constraints)
-            .build()
-        
+        val constraints =
+                Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+
+        val workRequest =
+                PeriodicWorkRequestBuilder<SyncWorker>(
+                                NativeSyncConfig.SYNC_INTERVAL_MINUTES,
+                                TimeUnit.MINUTES
+                        )
+                        .setConstraints(constraints)
+                        .build()
+
         workManager.enqueueUniquePeriodicWork(
-            WORK_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
-            workRequest
+                WORK_NAME,
+                ExistingPeriodicWorkPolicy.UPDATE,
+                workRequest
         )
-        
+
         DebugLogger.i("SyncService", "WorkManager sync scheduled")
     }
 
@@ -148,23 +88,23 @@ class SyncService(private val context: Context) {
         context.stopService(intent)
         DebugLogger.i("SyncService", "FileMonitorService stopped from SyncService")
     }
-    
+
     fun stopSync() {
         workManager.cancelUniqueWork(WORK_NAME)
         stopFileMonitorService()
-        
+
         context.getSharedPreferences(NativeSyncConfig.PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, false)
-            .apply()
-        
+                .edit()
+                .putBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, false)
+                .apply()
+
         DebugLogger.i("SyncService", "WorkManager and FileMonitorService sync stopped")
     }
-    
+
     fun getUnsyncedFilesCount(folderPath: String): Int {
         return database.getUnsyncedFiles(folderPath).size
     }
-    
+
     suspend fun clearSyncCache() {
         withContext(Dispatchers.IO) {
             database.writableDatabase.delete("synced_files", null, null)

@@ -26,11 +26,7 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
 
-        setContent {
-            PowerSyncTheme(darkTheme = false) {
-                PowerSyncApp()
-            }
-        }
+        setContent { PowerSyncTheme(darkTheme = false) { PowerSyncApp() } }
     }
 
     override fun onDestroy() {
@@ -45,9 +41,6 @@ private fun PowerSyncApp() {
     val isSignedIn by rememberAuthState()
 
     Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
-        AppNavHost(
-            navController = navController,
-            isSignedIn = isSignedIn
-        )
+        AppNavHost(navController = navController, isSignedIn = isSignedIn)
     }
 }

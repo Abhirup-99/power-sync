@@ -11,26 +11,46 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.rounded.FolderOpen
-import androidx.compose.material.icons.rounded.SyncProblem
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
@@ -39,10 +59,10 @@ import com.lumaqi.powersync.services.GoogleAuthService
 import com.lumaqi.powersync.services.GoogleDriveService
 import com.lumaqi.powersync.services.SyncService
 import com.lumaqi.powersync.ui.components.DriveFolderPickerDialog
-import com.lumaqi.powersync.ui.theme.*
-import java.text.SimpleDateFormat
-import java.util.*
-import kotlinx.coroutines.delay
+import com.lumaqi.powersync.ui.theme.Error
+import com.lumaqi.powersync.ui.theme.Grey600
+import com.lumaqi.powersync.ui.theme.Grey900
+import com.lumaqi.powersync.ui.theme.Primary
 import kotlinx.coroutines.launch
 
 @Composable
@@ -56,12 +76,6 @@ fun OnboardingScreen(onFolderSelected: () -> Unit, onSignOut: () -> Unit) {
     var driveFolderName by remember { mutableStateOf<String?>(null) }
     var showDriveFolderPicker by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(true) }
-    var isSyncing by remember { mutableStateOf(false) }
-    var uploadedCount by remember { mutableStateOf(0) }
-    var totalCount by remember { mutableStateOf(0) }
-    var autoSyncActive by remember { mutableStateOf(false) }
-    var lastSyncTime by remember { mutableStateOf<Date?>(null) }
-    var pendingFilesCount by remember { mutableStateOf(0) }
 
     val user = FirebaseAuth.getInstance().currentUser
     val userName = user?.displayName ?: user?.email ?: "User"
@@ -71,30 +85,10 @@ fun OnboardingScreen(onFolderSelected: () -> Unit, onSignOut: () -> Unit) {
         val prefs = context.getSharedPreferences(NativeSyncConfig.PREFS_NAME, Context.MODE_PRIVATE)
         folderPath = prefs.getString(NativeSyncConfig.KEY_SYNC_FOLDER_PATH, null)
         driveFolderName = prefs.getString(NativeSyncConfig.KEY_DRIVE_FOLDER_NAME, null)
-        autoSyncActive = prefs.getBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, false)
-
-        val lastSyncString = prefs.getString(NativeSyncConfig.KEY_LAST_SYNC_TIME, null)
-        lastSyncTime =
-                lastSyncString?.let {
-                    try {
-                        SimpleDateFormat("EEE MMM dd HH:mm:ss zzz yyyy", Locale.US).parse(it)
-                    } catch (e: Exception) {
-                        null
-                    }
-                }
-
-        folderPath?.let { pendingFilesCount = syncService.getUnsyncedFilesCount(it) }
-
         isLoading = false
     }
 
     // Periodic status update
-    LaunchedEffect(autoSyncActive) {
-        while (autoSyncActive) {
-            delay(10000)
-            folderPath?.let { pendingFilesCount = syncService.getUnsyncedFilesCount(it) }
-        }
-    }
 
     val folderPickerLauncher =
             rememberLauncherForActivityResult(
@@ -102,20 +96,11 @@ fun OnboardingScreen(onFolderSelected: () -> Unit, onSignOut: () -> Unit) {
             ) { uri ->
                 uri?.let {
                     // Convert content URI to file path
-                    val path = getPathFromUri(context, it)
+                    val path = getPathFromUri(it)
                     if (path != null) {
                         folderPath = path
-                        val prefs =
-                                context.getSharedPreferences(
-                                        NativeSyncConfig.PREFS_NAME,
-                                        Context.MODE_PRIVATE
-                                )
-                        prefs.edit().putString(NativeSyncConfig.KEY_SYNC_FOLDER_PATH, path).apply()
-
-                        scope.launch {
-                            pendingFilesCount = syncService.getUnsyncedFilesCount(path)
-                            onFolderSelected()
-                        }
+                        syncService.enableAndStartSync(path)
+                        onFolderSelected()
                     } else {
                         Toast.makeText(context, "Could not access folder", Toast.LENGTH_SHORT)
                                 .show()
@@ -166,12 +151,6 @@ fun OnboardingScreen(onFolderSelected: () -> Unit, onSignOut: () -> Unit) {
                 // Folder selection card
                 FolderSelectionCard(
                         folderPath = folderPath,
-                        isSyncing = isSyncing,
-                        autoSyncActive = autoSyncActive,
-                        lastSyncTime = lastSyncTime,
-                        uploadedCount = uploadedCount,
-                        totalCount = totalCount,
-                        pendingFilesCount = pendingFilesCount,
                         onPickFolder = {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
                                             !Environment.isExternalStorageManager()
@@ -203,83 +182,6 @@ fun OnboardingScreen(onFolderSelected: () -> Unit, onSignOut: () -> Unit) {
                                 }
                             } else {
                                 folderPickerLauncher.launch(null)
-                            }
-                        },
-                        onSyncNow = {
-                            folderPath?.let { path ->
-                                scope.launch {
-                                    isSyncing = true
-                                    try {
-                                        syncService.performSync(
-                                                folderPath = path,
-                                                startBackgroundService = true,
-                                                onProgress = { uploaded, total ->
-                                                    uploadedCount = uploaded
-                                                    totalCount = total
-                                                }
-                                        )
-                                        autoSyncActive = true
-                                        lastSyncTime = Date()
-                                        pendingFilesCount = syncService.getUnsyncedFilesCount(path)
-                                        Toast.makeText(
-                                                        context,
-                                                        "Sync completed!",
-                                                        Toast.LENGTH_SHORT
-                                                )
-                                                .show()
-                                    } catch (e: Exception) {
-                                        Toast.makeText(
-                                                        context,
-                                                        "Sync error: ${e.message}",
-                                                        Toast.LENGTH_SHORT
-                                                )
-                                                .show()
-                                    } finally {
-                                        isSyncing = false
-                                    }
-                                }
-                            }
-                        },
-                        onForceSync = {
-                            folderPath?.let { path ->
-                                scope.launch {
-                                    isSyncing = true
-                                    try {
-                                        syncService.clearSyncCache()
-                                        syncService.performSync(
-                                                folderPath = path,
-                                                startBackgroundService = false,
-                                                onProgress = { uploaded, total ->
-                                                    uploadedCount = uploaded
-                                                    totalCount = total
-                                                }
-                                        )
-                                        lastSyncTime = Date()
-                                        pendingFilesCount = syncService.getUnsyncedFilesCount(path)
-                                        Toast.makeText(
-                                                        context,
-                                                        "Force sync completed!",
-                                                        Toast.LENGTH_SHORT
-                                                )
-                                                .show()
-                                    } catch (e: Exception) {
-                                        Toast.makeText(
-                                                        context,
-                                                        "Sync error: ${e.message}",
-                                                        Toast.LENGTH_SHORT
-                                                )
-                                                .show()
-                                    } finally {
-                                        isSyncing = false
-                                    }
-                                }
-                            }
-                        },
-                        onRefreshStatus = {
-                            scope.launch {
-                                folderPath?.let {
-                                    pendingFilesCount = syncService.getUnsyncedFilesCount(it)
-                                }
                             }
                         }
                 )
@@ -376,19 +278,7 @@ private fun UserProfileCard(userName: String, onSignOut: () -> Unit) {
 }
 
 @Composable
-private fun FolderSelectionCard(
-        folderPath: String?,
-        isSyncing: Boolean,
-        autoSyncActive: Boolean,
-        lastSyncTime: Date?,
-        uploadedCount: Int,
-        totalCount: Int,
-        pendingFilesCount: Int,
-        onPickFolder: () -> Unit,
-        onSyncNow: () -> Unit,
-        onForceSync: () -> Unit,
-        onRefreshStatus: () -> Unit
-) {
+private fun FolderSelectionCard(folderPath: String?, onPickFolder: () -> Unit) {
     Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -414,159 +304,23 @@ private fun FolderSelectionCard(
             ) {
                 Icon(Icons.Rounded.FolderOpen, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Select Folder")
+                Text(if (folderPath != null) "Change Folder" else "Select Folder")
             }
 
-            // Folder status
             if (folderPath != null) {
-                Spacer(modifier = Modifier.height(20.dp))
-
-                FolderStatusDisplay(
-                        folderPath = folderPath,
-                        autoSyncActive = autoSyncActive,
-                        lastSyncTime = lastSyncTime,
-                        pendingCount = pendingFilesCount,
-                        onRefresh = onRefreshStatus
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                        text = "Selected: $folderPath",
+                        fontSize = 12.sp,
+                        color = Grey600,
+                        modifier = Modifier.padding(start = 4.dp)
                 )
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Sync now button
-            Button(
-                    onClick = onSyncNow,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    enabled = folderPath != null && !isSyncing,
-                    colors =
-                            ButtonDefaults.buttonColors(
-                                    containerColor = Green,
-                                    disabledContainerColor = Grey200
-                            ),
-                    shape = RoundedCornerShape(12.dp)
-            ) {
-                if (isSyncing) {
-                    CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                            color = Color.White
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                            if (totalCount > 0) "Syncing $uploadedCount/$totalCount..."
-                            else "Syncing...",
-                            fontWeight = FontWeight.SemiBold
-                    )
-                } else {
-                    Icon(Icons.Rounded.CloudUpload, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Sync Now", fontWeight = FontWeight.SemiBold)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Force sync button
-            OutlinedButton(
-                    onClick = onForceSync,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    enabled = folderPath != null && !isSyncing,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Orange),
-                    border =
-                            ButtonDefaults.outlinedButtonBorder.copy(
-                                    brush = androidx.compose.ui.graphics.SolidColor(Orange)
-                            ),
-                    shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(Icons.Rounded.SyncProblem, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Force Sync (Reset & Sync All)")
             }
         }
     }
 }
 
-@Composable
-private fun FolderStatusDisplay(
-        folderPath: String,
-        autoSyncActive: Boolean,
-        lastSyncTime: Date?,
-        pendingCount: Int,
-        onRefresh: () -> Unit
-) {
-    Column(
-            modifier =
-                    Modifier.fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Grey200.copy(alpha = 0.3f))
-                            .padding(16.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                    imageVector = Icons.Default.Folder,
-                    contentDescription = null,
-                    tint = Primary,
-                    modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                    text = folderPath.split("/").lastOrNull() ?: folderPath,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-            )
-            IconButton(onClick = onRefresh, modifier = Modifier.size(32.dp)) {
-                Icon(
-                        Icons.Outlined.Refresh,
-                        contentDescription = "Refresh",
-                        tint = Grey600,
-                        modifier = Modifier.size(18.dp)
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Row {
-            StatusChip(
-                    text = if (autoSyncActive) "Auto-sync: ON" else "Auto-sync: OFF",
-                    isActive = autoSyncActive
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            if (lastSyncTime != null) {
-                val format = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
-                StatusChip(text = "Last: ${format.format(lastSyncTime)}", isActive = false)
-                Spacer(modifier = Modifier.width(8.dp))
-            }
-
-            StatusChip(
-                    text = "Pending: $pendingCount",
-                    isActive = pendingCount > 0,
-                    color = if (pendingCount > 0) Orange else Grey600
-            )
-        }
-    }
-}
-
-@Composable
-private fun StatusChip(
-        text: String,
-        isActive: Boolean,
-        color: Color = if (isActive) Green else Grey600
-) {
-    Text(
-            text = text,
-            fontSize = 11.sp,
-            color = color,
-            modifier =
-                    Modifier.clip(RoundedCornerShape(4.dp))
-                            .background(color.copy(alpha = 0.1f))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-    )
-}
-
-@Suppress("UNUSED_PARAMETER")
-private fun getPathFromUri(context: Context, uri: Uri): String? {
+private fun getPathFromUri(uri: Uri): String? {
     // For document tree URIs, we need to use the actual path
     // Try to extract from the URI
     val docId = uri.lastPathSegment ?: return null

@@ -21,6 +21,30 @@ class SyncService(private val context: Context) {
         private const val WORK_NAME = "sync_work"
     }
 
+    fun enableAndStartSync(folderPath: String) {
+        DebugLogger.i("SyncService", "enableAndStartSync called with path: $folderPath")
+
+        // Save preferences
+        val prefs = context.getSharedPreferences(NativeSyncConfig.PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+                .putString(NativeSyncConfig.KEY_SYNC_FOLDER_PATH, folderPath)
+                .putBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, true)
+                .apply()
+
+        // Start services
+        startFileMonitorService()
+        startWorkManager()
+
+        // Trigger immediate sync via WorkManager (OneTime)
+        val oneTimeWork =
+                OneTimeWorkRequestBuilder<SyncWorker>()
+                        .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                        .build()
+
+        workManager.enqueue(oneTimeWork)
+        DebugLogger.i("SyncService", "Immediate sync enqueued via WorkManager")
+    }
+
     suspend fun performSync(
             folderPath: String,
             startBackgroundService: Boolean,

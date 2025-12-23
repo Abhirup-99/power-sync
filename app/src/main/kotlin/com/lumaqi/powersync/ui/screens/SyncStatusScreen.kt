@@ -31,11 +31,17 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
+import com.google.api.client.http.javanet.NetHttpTransport
+import com.google.api.client.json.gson.GsonFactory
+import com.google.api.services.drive.Drive
+import com.google.api.services.drive.DriveScopes
 import com.lumaqi.powersync.NativeSyncConfig
 import com.lumaqi.powersync.NativeSyncDatabase
 import com.lumaqi.powersync.services.SyncService
 import com.lumaqi.powersync.services.SyncStatusManager
 import java.io.File
+import java.util.Collections
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -62,6 +68,9 @@ fun SyncStatusScreen(onConfigureFolders: () -> Unit) {
     var accountEmail by remember { mutableStateOf<String?>(null) }
     var folderPath by remember { mutableStateOf<String?>(null) }
     var autoSyncActive by remember { mutableStateOf(false) }
+
+    var driveStorageTotal by remember { mutableLongStateOf(0L) }
+    var driveStorageUsed by remember { mutableLongStateOf(0L) }
 
     var syncedFilesCount by remember { mutableIntStateOf(0) }
     var pendingFilesCount by remember { mutableIntStateOf(0) }
@@ -128,7 +137,10 @@ fun SyncStatusScreen(onConfigureFolders: () -> Unit) {
                                 if (localFolder.exists() && localFolder.isDirectory) {
                                     val allFiles = localFolder.listFiles()
                                     val files =
-                                            allFiles?.filter { file -> file.isFile } ?: emptyList()
+                                            allFiles?.filter { file ->
+                                                file.isFile && !file.name.startsWith(".trashed-")
+                                            }
+                                                    ?: emptyList()
                                     localCount = files.size
                                     localSize = files.sumOf { file -> file.length() }
 
@@ -148,6 +160,37 @@ fun SyncStatusScreen(onConfigureFolders: () -> Unit) {
             pendingFilesCount = stats[2] as Int
             localFilesCount = stats[3] as Int
             localFilesSize = stats[4] as Long
+
+            // precise drive storage fetch
+            if (account != null) {
+                withContext(Dispatchers.IO) {
+                    try {
+                        val credential =
+                                GoogleAccountCredential.usingOAuth2(
+                                        context,
+                                        Collections.singleton(DriveScopes.DRIVE)
+                                )
+                        credential.selectedAccount = account.account
+                        val driveService =
+                                Drive.Builder(NetHttpTransport(), GsonFactory(), credential)
+                                        .setApplicationName("PowerSync")
+                                        .build()
+
+                        val about = driveService.about().get().setFields("storageQuota").execute()
+                        val quota = about.storageQuota
+                        if (quota != null) {
+                            driveStorageTotal = quota.limit ?: 0L
+                            driveStorageUsed = quota.usage ?: 0L
+                        } else {
+                            driveStorageTotal = 0L
+                            driveStorageUsed = 0L
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("SyncStatusScreen", "Error fetching storage quota", e)
+
+                    }
+                }
+            }
         }
     }
 
@@ -336,7 +379,9 @@ fun SyncStatusScreen(onConfigureFolders: () -> Unit) {
                                 pendingFilesCount = pendingFilesCount,
                                 totalSyncedSize = totalSyncedSize,
                                 localFilesCount = localFilesCount,
-                                localFilesSize = localFilesSize
+                                localFilesSize = localFilesSize,
+                                driveStorageTotal = driveStorageTotal,
+                                driveStorageUsed = driveStorageUsed
                         )
                 1 -> SyncHistoryTabContent(database)
                 2 -> SyncedFoldersTabContent(folderPath, onConfigureFolders)
@@ -359,7 +404,9 @@ fun StatusTabContent(
         pendingFilesCount: Int,
         totalSyncedSize: Long,
         localFilesCount: Int,
-        localFilesSize: Long
+        localFilesSize: Long,
+        driveStorageTotal: Long,
+        driveStorageUsed: Long
 ) {
     val context = LocalContext.current
 
@@ -611,7 +658,35 @@ fun StatusTabContent(
 
                     if (accountEmail != null) {
                         StatusRow("Account", accountEmail)
+                        StatusRow("Account", accountEmail)
                         StatusRow("Status", "Connected", Color(0xFF4CAF50))
+
+                        if (driveStorageTotal > 0) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            HorizontalDivider(
+                                    color =
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(
+                                                    alpha = 0.5f
+                                            )
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            StatusRow(
+                                    "Total Storage",
+                                    Formatter.formatShortFileSize(context, driveStorageTotal)
+                            )
+                            StatusRow(
+                                    "Used Space",
+                                    Formatter.formatShortFileSize(context, driveStorageUsed)
+                            )
+                            StatusRow(
+                                    "Free Space",
+                                    Formatter.formatShortFileSize(
+                                            context,
+                                            driveStorageTotal - driveStorageUsed
+                                    )
+                            )
+                        }
                     } else {
                         Text("Not connected", color = MaterialTheme.colorScheme.error)
                     }

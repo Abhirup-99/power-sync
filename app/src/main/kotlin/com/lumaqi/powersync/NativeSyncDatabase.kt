@@ -127,7 +127,10 @@ class NativeSyncDatabase(context: Context) :
         val unsyncedFiles = mutableListOf<File>()
 
         directory.listFiles()?.forEach { file ->
-            if (file.isFile && !isFileSynced(file.absolutePath)) {
+            if (file.isFile &&
+                            !file.name.startsWith(".trashed-") &&
+                            !isFileSynced(file.absolutePath)
+            ) {
                 unsyncedFiles.add(file)
             }
         }

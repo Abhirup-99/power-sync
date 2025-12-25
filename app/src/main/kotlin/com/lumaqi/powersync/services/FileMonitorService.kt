@@ -12,6 +12,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.lumaqi.powersync.DebugLogger
 import com.lumaqi.powersync.NativeSyncConfig
+import com.lumaqi.powersync.data.SyncSettingsRepository
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,7 +26,7 @@ import kotlinx.coroutines.launch
  */
 class FileMonitorService : Service() {
 
-    private var fileObserver: FileObserver? = null
+    private val observers = mutableListOf<FileObserver>()
     private var syncJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.IO)
 
@@ -57,43 +58,51 @@ class FileMonitorService : Service() {
     }
 
     private fun startMonitoring() {
-        val prefs = getSharedPreferences(NativeSyncConfig.PREFS_NAME, Context.MODE_PRIVATE)
-        val folderPath = prefs.getString(NativeSyncConfig.KEY_SYNC_FOLDER_PATH, null)
+        val repository = SyncSettingsRepository.getInstance(applicationContext)
+        val folders = repository.getFolders()
 
-        if (folderPath == null) {
-            DebugLogger.w("FileMonitorService", "No folder path configured")
+        if (folders.isEmpty()) {
+            DebugLogger.w("FileMonitorService", "No folders configured")
             stopSelf()
             return
         }
 
-        val folder = File(folderPath)
-        if (!folder.exists() || !folder.isDirectory) {
-            DebugLogger.w("FileMonitorService", "Folder does not exist: $folderPath")
-            stopSelf()
-            return
-        }
+        // Stop existing observers
+        observers.forEach { it.stopWatching() }
+        observers.clear()
 
-        DebugLogger.i("FileMonitorService", "Starting FileObserver on: $folderPath")
+        for (folder in folders) {
+            if (!folder.isEnabled) continue
 
-        // Stop existing observer if any
-        fileObserver?.stopWatching()
+            val folderPath = folder.localPath
+            val fileFolder = File(folderPath)
+            if (!fileFolder.exists() || !fileFolder.isDirectory) {
+                DebugLogger.w("FileMonitorService", "Folder does not exist: $folderPath")
+                continue
+            }
 
-        // Create new observer
-        fileObserver =
-                object : FileObserver(folderPath, CREATE or MODIFY or MOVED_TO) {
-                    override fun onEvent(event: Int, path: String?) {
-                        if (path == null) return
+            DebugLogger.i("FileMonitorService", "Starting FileObserver on: $folderPath")
 
-                        // Ignore dot files or temp files if needed
-                        if (path.startsWith(".")) return
+            val observer =
+                    object : FileObserver(folderPath, CREATE or MODIFY or MOVED_TO) {
+                        override fun onEvent(event: Int, path: String?) {
+                            if (path == null) return
 
-                        DebugLogger.i("FileMonitorService", "File event ($event) on: $path")
-                        SyncStatusManager.notifyFileChanged()
-                        scheduleSync()
+                            // Ignore dot files or temp files if needed
+                            if (path.startsWith(".")) return
+
+                            DebugLogger.i(
+                                    "FileMonitorService",
+                                    "File event ($event) on: $path in $folderPath"
+                            )
+                            SyncStatusManager.notifyFileChanged()
+                            scheduleSync()
+                        }
                     }
-                }
 
-        fileObserver?.startWatching()
+            observer.startWatching()
+            observers.add(observer)
+        }
     }
 
     private fun scheduleSync() {
@@ -113,18 +122,16 @@ class FileMonitorService : Service() {
                         DebugLogger.i("FileMonitorService", "Triggering sync now")
                         SyncStatusManager.notifySyncStarted()
 
-                        val prefs =
-                                getSharedPreferences(
-                                        NativeSyncConfig.PREFS_NAME,
-                                        Context.MODE_PRIVATE
-                                )
-                        val folderPath =
-                                prefs.getString(NativeSyncConfig.KEY_SYNC_FOLDER_PATH, null)
+                        val repository = SyncSettingsRepository.getInstance(applicationContext)
+                        val folders = repository.getFolders()
 
-                        if (folderPath != null) {
-                            val syncService = SyncService(applicationContext)
+                        for (folder in folders) {
+                            if (!folder.isEnabled) continue
+
+                            val syncService = SyncService.getInstance(applicationContext)
                             syncService.performSync(
-                                    folderPath = folderPath,
+                                    folderPath = folder.localPath,
+                                    driveFolderId = folder.driveFolderId,
                                     startBackgroundService = false, // We ARE the background service
                                     onProgress = { uploaded, total ->
                                         SyncStatusManager.notifySyncProgress(uploaded, total)
@@ -139,16 +146,9 @@ class FileMonitorService : Service() {
                 }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        DebugLogger.i("FileMonitorService", "Service destroying")
-        fileObserver?.stopWatching()
-        syncJob?.cancel()
-    }
-
     private fun createNotification(): android.app.Notification {
         return NotificationCompat.Builder(this, NativeSyncConfig.NOTIFICATION_CHANNEL_ID)
-                .setContentTitle("EvenSync Monitor")
+                .setContentTitle("PowerSync Monitor")
                 .setContentText("Watching for new files...")
                 .setSmallIcon(android.R.drawable.ic_popup_sync)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -172,5 +172,13 @@ class FileMonitorService : Service() {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
         }
+    }
+
+    override fun onDestroy() {
+        DebugLogger.i("FileMonitorService", "Service destroying")
+        observers.forEach { it.stopWatching() }
+        observers.clear()
+        syncJob?.cancel()
+        super.onDestroy()
     }
 }

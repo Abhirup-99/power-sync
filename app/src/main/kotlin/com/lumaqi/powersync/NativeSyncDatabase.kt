@@ -4,6 +4,8 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import com.lumaqi.powersync.models.SyncFolder
+import com.lumaqi.powersync.models.SyncStatus
 import java.io.File
 import java.security.MessageDigest
 import java.util.Locale
@@ -12,7 +14,7 @@ import java.util.Locale
  * Native SQLite database helper that accesses the same database as Flutter's sqflite. This allows
  * Kotlin to read/write sync status independently of Flutter engine.
  */
-class NativeSyncDatabase(context: Context) :
+class NativeSyncDatabase private constructor(context: Context) :
         SQLiteOpenHelper(
                 context,
                 context.getDatabasePath(NativeSyncConfig.DATABASE_NAME).absolutePath,
@@ -21,8 +23,20 @@ class NativeSyncDatabase(context: Context) :
         ) {
 
     companion object {
+        @Volatile
+        private var INSTANCE: NativeSyncDatabase? = null
+
+        fun getInstance(context: Context): NativeSyncDatabase {
+            return INSTANCE ?: synchronized(this) {
+                val instance = NativeSyncDatabase(context.applicationContext)
+                INSTANCE = instance
+                instance
+            }
+        }
+
         private const val TABLE_SYNCED_FILES = "synced_files"
         private const val TABLE_SYNC_METADATA = "sync_metadata"
+        private const val TABLE_SYNC_FOLDERS = "sync_folders"
 
         // synced_files columns
         private const val COL_FILE_PATH = "file_path"
@@ -37,6 +51,16 @@ class NativeSyncDatabase(context: Context) :
         // sync_metadata columns
         private const val COL_KEY = "key"
         private const val COL_VALUE = "value"
+
+        // sync_folders columns
+        private const val COL_FOLDER_ID = "id"
+        private const val COL_FOLDER_LOCAL_PATH = "local_path"
+        private const val COL_FOLDER_NAME = "name"
+        private const val COL_FOLDER_IS_ENABLED = "is_enabled"
+        private const val COL_FOLDER_LAST_SYNC_TIME = "last_sync_time"
+        private const val COL_FOLDER_STATUS = "status"
+        private const val COL_FOLDER_DRIVE_ID = "drive_folder_id"
+        private const val COL_FOLDER_DRIVE_NAME = "drive_folder_name"
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -65,10 +89,43 @@ class NativeSyncDatabase(context: Context) :
             )
         """
         )
+
+        db.execSQL(
+                """
+            CREATE TABLE IF NOT EXISTS $TABLE_SYNC_FOLDERS (
+                $COL_FOLDER_ID TEXT PRIMARY KEY,
+                $COL_FOLDER_LOCAL_PATH TEXT NOT NULL,
+                $COL_FOLDER_NAME TEXT NOT NULL,
+                $COL_FOLDER_IS_ENABLED INTEGER NOT NULL DEFAULT 1,
+                $COL_FOLDER_LAST_SYNC_TIME INTEGER NOT NULL DEFAULT 0,
+                $COL_FOLDER_STATUS TEXT NOT NULL DEFAULT 'Idle',
+                $COL_FOLDER_DRIVE_ID TEXT,
+                $COL_FOLDER_DRIVE_NAME TEXT
+            )
+        """
+        )
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Handle migrations if needed
+        if (oldVersion < 2) {
+            db.execSQL(
+                    """
+                CREATE TABLE IF NOT EXISTS $TABLE_SYNC_FOLDERS (
+                    $COL_FOLDER_ID TEXT PRIMARY KEY,
+                    $COL_FOLDER_LOCAL_PATH TEXT NOT NULL,
+                    $COL_FOLDER_NAME TEXT NOT NULL,
+                    $COL_FOLDER_IS_ENABLED INTEGER NOT NULL DEFAULT 1,
+                    $COL_FOLDER_LAST_SYNC_TIME INTEGER NOT NULL DEFAULT 0,
+                    $COL_FOLDER_STATUS TEXT NOT NULL DEFAULT 'Idle',
+                    $COL_FOLDER_DRIVE_ID TEXT,
+                    $COL_FOLDER_DRIVE_NAME TEXT
+                )
+            """
+            )
+        } else if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE $TABLE_SYNC_FOLDERS ADD COLUMN $COL_FOLDER_DRIVE_ID TEXT")
+            db.execSQL("ALTER TABLE $TABLE_SYNC_FOLDERS ADD COLUMN $COL_FOLDER_DRIVE_NAME TEXT")
+        }
     }
 
     /** Check if a file is already synced and unchanged */
@@ -194,6 +251,66 @@ class NativeSyncDatabase(context: Context) :
         return cursor.use { if (it.moveToFirst()) it.getString(0) else null }
     }
 
+    /** Get all sync folders */
+    fun getAllFolders(): List<SyncFolder> {
+        val db = readableDatabase
+        val folders = mutableListOf<SyncFolder>()
+        val cursor = db.query(TABLE_SYNC_FOLDERS, null, null, null, null, null, null)
+        cursor.use {
+            while (it.moveToNext()) {
+                folders.add(
+                        SyncFolder(
+                                id = it.getString(it.getColumnIndexOrThrow(COL_FOLDER_ID)),
+                                localPath =
+                                        it.getString(it.getColumnIndexOrThrow(COL_FOLDER_LOCAL_PATH)),
+                                name = it.getString(it.getColumnIndexOrThrow(COL_FOLDER_NAME)),
+                                isEnabled =
+                                        it.getInt(it.getColumnIndexOrThrow(COL_FOLDER_IS_ENABLED)) ==
+                                                1,
+                                lastSyncTime =
+                                        it.getLong(
+                                                it.getColumnIndexOrThrow(COL_FOLDER_LAST_SYNC_TIME)
+                                        ),
+                                status =
+                                        SyncStatus.valueOf(
+                                                it.getString(
+                                                        it.getColumnIndexOrThrow(COL_FOLDER_STATUS)
+                                                )
+                                        ),
+                                driveFolderId =
+                                        it.getString(it.getColumnIndexOrThrow(COL_FOLDER_DRIVE_ID)),
+                                driveFolderName =
+                                        it.getString(it.getColumnIndexOrThrow(COL_FOLDER_DRIVE_NAME))
+                        )
+                )
+            }
+        }
+        return folders
+    }
+
+    /** Add or update a sync folder */
+    fun saveFolder(folder: SyncFolder) {
+        val db = writableDatabase
+        val values =
+                ContentValues().apply {
+                    put(COL_FOLDER_ID, folder.id)
+                    put(COL_FOLDER_LOCAL_PATH, folder.localPath)
+                    put(COL_FOLDER_NAME, folder.name)
+                    put(COL_FOLDER_IS_ENABLED, if (folder.isEnabled) 1 else 0)
+                    put(COL_FOLDER_LAST_SYNC_TIME, folder.lastSyncTime)
+                    put(COL_FOLDER_STATUS, folder.status.name)
+                    put(COL_FOLDER_DRIVE_ID, folder.driveFolderId)
+                    put(COL_FOLDER_DRIVE_NAME, folder.driveFolderName)
+                }
+        db.insertWithOnConflict(TABLE_SYNC_FOLDERS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    /** Remove a sync folder */
+    fun deleteFolder(folderId: String) {
+        val db = writableDatabase
+        db.delete(TABLE_SYNC_FOLDERS, "$COL_FOLDER_ID = ?", arrayOf(folderId))
+    }
+
     /** Get list of recently synced files */
     fun getSyncHistory(limit: Int = 50, offset: Int = 0): List<Map<String, Any>> {
         val db = readableDatabase
@@ -232,6 +349,19 @@ class NativeSyncDatabase(context: Context) :
         }
 
         return history
+    }
+
+    /** Get total count and size of synced files */
+    fun getSyncedStats(): Pair<Int, Long> {
+        val db = readableDatabase
+        val cursor = db.rawQuery("SELECT COUNT(*), COALESCE(SUM(file_size), 0) FROM $TABLE_SYNCED_FILES", null)
+        return cursor.use {
+            if (it.moveToFirst()) {
+                Pair(it.getInt(0), it.getLong(1))
+            } else {
+                Pair(0, 0L)
+            }
+        }
     }
 
     private fun getCurrentTimestamp(): String {

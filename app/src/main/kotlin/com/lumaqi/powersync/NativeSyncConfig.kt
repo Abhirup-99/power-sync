@@ -13,11 +13,11 @@ object NativeSyncConfig {
 
     // Database
     const val DATABASE_NAME = "powersync_sync.db"
-    const val DATABASE_VERSION = 1
+    const val DATABASE_VERSION = 3
 
     // Notification
-    const val NOTIFICATION_CHANNEL_ID = "evensync_channel"
-    const val NOTIFICATION_CHANNEL_NAME = "EvenSync Background Service"
+    const val NOTIFICATION_CHANNEL_ID = "powersync_channel"
+    const val NOTIFICATION_CHANNEL_NAME = "PowerSync Background Service"
     const val NOTIFICATION_ID = 256
 
     // Sync Configuration

@@ -55,6 +55,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
 import com.lumaqi.powersync.NativeSyncConfig
+import com.lumaqi.powersync.data.SyncSettingsRepository
+import com.lumaqi.powersync.models.SyncFolder
 import com.lumaqi.powersync.services.GoogleAuthService
 import com.lumaqi.powersync.services.GoogleDriveService
 import com.lumaqi.powersync.services.SyncService
@@ -63,6 +65,7 @@ import com.lumaqi.powersync.ui.theme.Error
 import com.lumaqi.powersync.ui.theme.Grey600
 import com.lumaqi.powersync.ui.theme.Grey900
 import com.lumaqi.powersync.ui.theme.Primary
+import com.lumaqi.powersync.utils.FileUtils
 import kotlinx.coroutines.launch
 
 @Composable
@@ -70,9 +73,11 @@ fun OnboardingScreen(onFolderSelected: () -> Unit, onSignOut: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val authService = remember { GoogleAuthService(context) }
-    val syncService = remember { SyncService(context) }
+    val syncService = remember { SyncService.getInstance(context) }
+    val repository = remember { SyncSettingsRepository.getInstance(context) }
 
     var folderPath by remember { mutableStateOf<String?>(null) }
+    var driveFolderId by remember { mutableStateOf<String?>(null) }
     var driveFolderName by remember { mutableStateOf<String?>(null) }
     var showDriveFolderPicker by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(true) }
@@ -82,9 +87,10 @@ fun OnboardingScreen(onFolderSelected: () -> Unit, onSignOut: () -> Unit) {
 
     // Load initial state
     LaunchedEffect(Unit) {
-        val prefs = context.getSharedPreferences(NativeSyncConfig.PREFS_NAME, Context.MODE_PRIVATE)
-        folderPath = prefs.getString(NativeSyncConfig.KEY_SYNC_FOLDER_PATH, null)
-        driveFolderName = prefs.getString(NativeSyncConfig.KEY_DRIVE_FOLDER_NAME, null)
+        val folders = repository.getFolders()
+        folderPath = folders.firstOrNull()?.localPath
+        driveFolderId = repository.getString(NativeSyncConfig.KEY_DRIVE_FOLDER_ID)
+        driveFolderName = repository.getString(NativeSyncConfig.KEY_DRIVE_FOLDER_NAME)
         isLoading = false
     }
 
@@ -96,10 +102,10 @@ fun OnboardingScreen(onFolderSelected: () -> Unit, onSignOut: () -> Unit) {
             ) { uri ->
                 uri?.let {
                     // Convert content URI to file path
-                    val path = getPathFromUri(it)
+                    val path = FileUtils.getPathFromUri(context, it)
                     if (path != null) {
                         folderPath = path
-                        syncService.enableAndStartSync(path)
+                        syncService.enableAndStartSync(path, driveFolderId, driveFolderName)
                         onFolderSelected()
                     } else {
                         Toast.makeText(context, "Could not access folder", Toast.LENGTH_SHORT)
@@ -195,16 +201,10 @@ fun OnboardingScreen(onFolderSelected: () -> Unit, onSignOut: () -> Unit) {
                 driveService = driveService,
                 onDismissRequest = { showDriveFolderPicker = false },
                 onFolderSelected = { id, name ->
+                    driveFolderId = id
                     driveFolderName = name
-                    val prefs =
-                            context.getSharedPreferences(
-                                    NativeSyncConfig.PREFS_NAME,
-                                    Context.MODE_PRIVATE
-                            )
-                    prefs.edit()
-                            .putString(NativeSyncConfig.KEY_DRIVE_FOLDER_ID, id)
-                            .putString(NativeSyncConfig.KEY_DRIVE_FOLDER_NAME, name)
-                            .apply()
+                    repository.setString(NativeSyncConfig.KEY_DRIVE_FOLDER_ID, id)
+                    repository.setString(NativeSyncConfig.KEY_DRIVE_FOLDER_NAME, name)
                     showDriveFolderPicker = false
                 }
         )
@@ -315,31 +315,6 @@ private fun FolderSelectionCard(folderPath: String?, onPickFolder: () -> Unit) {
                         color = Grey600,
                         modifier = Modifier.padding(start = 4.dp)
                 )
-            }
-        }
-    }
-}
-
-private fun getPathFromUri(uri: Uri): String? {
-    // For document tree URIs, we need to use the actual path
-    // Try to extract from the URI
-    val docId = uri.lastPathSegment ?: return null
-
-    // Common pattern: "primary:folder/subfolder"
-    if (docId.startsWith("primary:")) {
-        val relativePath = docId.substringAfter("primary:")
-        return "${Environment.getExternalStorageDirectory().absolutePath}/$relativePath"
-    }
-
-    // If not primary, try to use the path directly
-    return uri.path?.let { path ->
-        // Remove /tree/ prefix if present
-        path.replace("/tree/", "").let { cleanPath ->
-            if (cleanPath.startsWith("primary:")) {
-                "${Environment.getExternalStorageDirectory().absolutePath}/${cleanPath.substringAfter("primary:")}"
-            } else {
-                // Might be an external SD card or other storage
-                cleanPath
             }
         }
     }

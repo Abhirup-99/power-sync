@@ -13,6 +13,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.lumaqi.powersync.DebugLogger
 import com.lumaqi.powersync.NativeSyncConfig
 import com.lumaqi.powersync.NativeSyncDatabase
+import com.lumaqi.powersync.data.SyncSettingsRepository
 import java.io.File
 import java.util.Collections
 import kotlinx.coroutines.Dispatchers
@@ -20,18 +21,31 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-class SyncEngine(private val context: Context) {
+class SyncEngine private constructor(private val context: Context) {
 
-    private val database = NativeSyncDatabase(context)
+    private val database = NativeSyncDatabase.getInstance(context)
+    private val repository = SyncSettingsRepository.getInstance(context)
     private val auth = FirebaseAuth.getInstance()
 
     companion object {
+        @Volatile
+        private var INSTANCE: SyncEngine? = null
+
+        fun getInstance(context: Context): SyncEngine {
+            return INSTANCE ?: synchronized(this) {
+                val instance = SyncEngine(context.applicationContext)
+                INSTANCE = instance
+                instance
+            }
+        }
+
         private val folderMutex = Mutex()
         private val syncMutex = Mutex()
     }
 
     suspend fun performSync(
             folderPath: String,
+            driveFolderId: String? = null,
             onProgress: (suspend (uploaded: Int, total: Int) -> Unit)? = null
     ): Int {
         return syncMutex.withLock {
@@ -93,19 +107,17 @@ class SyncEngine(private val context: Context) {
 
                     // Get target Drive folder
                     DebugLogger.i("SyncEngine", "Determining target Drive folder")
-                    val prefs =
-                            context.getSharedPreferences(
-                                    NativeSyncConfig.PREFS_NAME,
-                                    Context.MODE_PRIVATE
-                            )
+                    val folderFromRepo = repository.getFolders().find { it.localPath == folderPath }
                     val configuredFolderId =
-                            prefs.getString(NativeSyncConfig.KEY_DRIVE_FOLDER_ID, null)
+                            driveFolderId
+                                    ?: folderFromRepo?.driveFolderId
+                                    ?: repository.getString(NativeSyncConfig.KEY_DRIVE_FOLDER_ID)
 
                     val parentFolderId =
                             if (!configuredFolderId.isNullOrEmpty()) {
                                 DebugLogger.i(
                                         "SyncEngine",
-                                        "Using configured folder ID: $configuredFolderId"
+                                        "Using folder ID: $configuredFolderId"
                                 )
                                 configuredFolderId
                             } else {
@@ -248,9 +260,6 @@ class SyncEngine(private val context: Context) {
     }
 
     private fun updateLastSyncTime() {
-        context.getSharedPreferences(NativeSyncConfig.PREFS_NAME, Context.MODE_PRIVATE)
-                .edit()
-                .putLong(NativeSyncConfig.KEY_LAST_SYNC_TIME, System.currentTimeMillis())
-                .apply()
+        repository.setLong(NativeSyncConfig.KEY_LAST_SYNC_TIME, System.currentTimeMillis())
     }
 }

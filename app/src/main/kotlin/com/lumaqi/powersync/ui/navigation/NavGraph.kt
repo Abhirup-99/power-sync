@@ -13,6 +13,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import com.lumaqi.powersync.NativeSyncConfig
+import com.lumaqi.powersync.data.SyncSettingsRepository
 import com.lumaqi.powersync.ui.screens.ConnectDriveScreen
 import com.lumaqi.powersync.ui.screens.LoginScreen
 import com.lumaqi.powersync.ui.screens.OnboardingScreen
@@ -23,12 +24,8 @@ fun AppNavHost(navController: NavHostController, isSignedIn: Boolean) {
     val context = LocalContext.current
     val hasFolder =
             remember(isSignedIn) {
-                val prefs =
-                        context.getSharedPreferences(
-                                NativeSyncConfig.PREFS_NAME,
-                                Context.MODE_PRIVATE
-                        )
-                prefs.getString(NativeSyncConfig.KEY_SYNC_FOLDER_PATH, null) != null
+                val repository = SyncSettingsRepository.getInstance(context)
+                repository.getFolders().isNotEmpty()
             }
 
     val startDestination = remember {

@@ -7,29 +7,60 @@ import com.lumaqi.powersync.DebugLogger
 import com.lumaqi.powersync.NativeSyncConfig
 import com.lumaqi.powersync.NativeSyncDatabase
 import com.lumaqi.powersync.SyncWorker
+import com.lumaqi.powersync.data.SyncSettingsRepository
+import com.lumaqi.powersync.models.SyncFolder
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class SyncService(private val context: Context) {
+class SyncService private constructor(private val context: Context) {
 
-    private val database = NativeSyncDatabase(context)
+    private val database = NativeSyncDatabase.getInstance(context)
+    private val repository = SyncSettingsRepository.getInstance(context)
     private val workManager = WorkManager.getInstance(context)
-    private val syncEngine = SyncEngine(context)
+    private val syncEngine = SyncEngine.getInstance(context)
 
     companion object {
+        @Volatile
+        private var INSTANCE: SyncService? = null
+
+        fun getInstance(context: Context): SyncService {
+            return INSTANCE ?: synchronized(this) {
+                val instance = SyncService(context.applicationContext)
+                INSTANCE = instance
+                instance
+            }
+        }
+
         private const val WORK_NAME = "sync_work"
     }
 
-    fun enableAndStartSync(folderPath: String) {
-        DebugLogger.i("SyncService", "enableAndStartSync called with path: $folderPath")
+    fun enableAndStartSync(folderPath: String, driveFolderId: String? = null, driveFolderName: String? = null) {
+        DebugLogger.i("SyncService", "enableAndStartSync called with path: $folderPath, driveId: $driveFolderId")
 
-        // Save preferences
-        val prefs = context.getSharedPreferences(NativeSyncConfig.PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit()
-                .putString(NativeSyncConfig.KEY_SYNC_FOLDER_PATH, folderPath)
-                .putBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, true)
-                .apply()
+        // Save folder if not exists or update if driveId changed
+        val folders = repository.getFolders()
+        val existingFolder = folders.find { it.localPath == folderPath }
+
+        if (existingFolder == null) {
+            val folderName = folderPath.substringAfterLast("/")
+            repository.addFolder(
+                    SyncFolder(
+                            localPath = folderPath,
+                            name = if (folderName.isNotEmpty()) folderName else "Sync Folder",
+                            driveFolderId = driveFolderId,
+                            driveFolderName = driveFolderName ?: "PowerSync"
+                    )
+            )
+        } else if (driveFolderId != null && existingFolder.driveFolderId != driveFolderId) {
+            repository.addFolder(
+                    existingFolder.copy(
+                            driveFolderId = driveFolderId,
+                            driveFolderName = driveFolderName ?: existingFolder.driveFolderName
+                    )
+            )
+        }
+        repository.setBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, true)
 
         // Start services
         startFileMonitorService()
@@ -47,30 +78,25 @@ class SyncService(private val context: Context) {
 
     suspend fun performSync(
             folderPath: String,
+            driveFolderId: String? = null,
             startBackgroundService: Boolean,
             onProgress: (uploaded: Int, total: Int) -> Unit
     ): Int {
         DebugLogger.i(
                 "SyncService",
-                "performSync called with folderPath: $folderPath, startBackgroundService: $startBackgroundService"
+                "performSync called with folderPath: $folderPath, driveFolderId: $driveFolderId, startBackgroundService: $startBackgroundService"
         )
         return withContext(Dispatchers.IO) {
-            // Save folder path
-            val prefs =
-                    context.getSharedPreferences(NativeSyncConfig.PREFS_NAME, Context.MODE_PRIVATE)
-            prefs.edit().putString(NativeSyncConfig.KEY_SYNC_FOLDER_PATH, folderPath).apply()
-            DebugLogger.i("SyncService", "Saved folder path to prefs")
-
             // Delegate to SyncEngine
             DebugLogger.i("SyncService", "Delegating to SyncEngine.performSync")
-            val result = syncEngine.performSync(folderPath, onProgress)
+            val result = syncEngine.performSync(folderPath, driveFolderId, onProgress = onProgress)
             DebugLogger.i("SyncService", "SyncEngine.performSync result: $result")
 
             if (startBackgroundService) {
                 DebugLogger.i("SyncService", "Starting background services")
                 startWorkManager()
                 startFileMonitorService()
-                prefs.edit().putBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, true).apply()
+                repository.setBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, true)
             }
             result
         }
@@ -117,10 +143,7 @@ class SyncService(private val context: Context) {
         workManager.cancelUniqueWork(WORK_NAME)
         stopFileMonitorService()
 
-        context.getSharedPreferences(NativeSyncConfig.PREFS_NAME, Context.MODE_PRIVATE)
-                .edit()
-                .putBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, false)
-                .apply()
+        repository.setBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, false)
 
         DebugLogger.i("SyncService", "WorkManager and FileMonitorService sync stopped")
     }

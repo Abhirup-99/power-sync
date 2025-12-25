@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.NavigateNext
+import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,43 +31,32 @@ import com.lumaqi.powersync.NativeSyncConfig
 import com.lumaqi.powersync.data.SyncSettingsRepository
 import com.lumaqi.powersync.models.SyncFolder
 import com.lumaqi.powersync.services.SyncService
+import com.lumaqi.powersync.services.GoogleDriveService
+import com.lumaqi.powersync.ui.components.DriveFolderPickerDialog
 import com.lumaqi.powersync.ui.theme.*
+import com.lumaqi.powersync.utils.FileUtils
 import kotlinx.coroutines.launch
 
 @Composable
 fun ConnectDriveScreen(onFolderSelected: () -> Unit) {
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
-        val syncService = remember { SyncService(context) }
-        val repository = remember { SyncSettingsRepository(context) }
+        val syncService = remember { SyncService.getInstance(context) }
+        val repository = remember { SyncSettingsRepository.getInstance(context) }
         var folderPath by remember { mutableStateOf<String?>(null) }
+        var driveFolderId by remember { mutableStateOf<String?>(null) }
+        var driveFolderName by remember { mutableStateOf<String?>(null) }
+        var showDrivePicker by remember { mutableStateOf(false) }
         var isSyncing by remember { mutableStateOf(false) }
-
-        // Load initial state
-        LaunchedEffect(Unit) {
-                val prefs =
-                        context.getSharedPreferences(
-                                NativeSyncConfig.PREFS_NAME,
-                                Context.MODE_PRIVATE
-                        )
-                folderPath = prefs.getString(NativeSyncConfig.KEY_SYNC_FOLDER_PATH, null)
-        }
 
         val folderPickerLauncher =
                 rememberLauncherForActivityResult(
                         contract = ActivityResultContracts.OpenDocumentTree()
                 ) { uri ->
                         uri?.let {
-                                val path = getPathFromUri(context, it)
+                                val path = FileUtils.getPathFromUri(context, it)
                                 if (path != null) {
                                         folderPath = path
-                                        
-                                        val folderName = path.substringAfterLast("/")
-                                        val newFolder = SyncFolder(
-                                            localPath = path,
-                                            name = if (folderName.isNotEmpty()) folderName else "Sync Folder"
-                                        )
-                                        repository.addFolder(newFolder)
                                 } else {
                                         Toast.makeText(
                                                         context,
@@ -127,7 +117,7 @@ fun ConnectDriveScreen(onFolderSelected: () -> Unit) {
                         // Selected Path Display
                         if (folderPath != null) {
                                 Text(
-                                        text = "Selected Folder:",
+                                        text = "Local Folder:",
                                         style = MaterialTheme.typography.labelLarge,
                                         color =
                                                 MaterialTheme.colorScheme.onBackground.copy(
@@ -154,119 +144,133 @@ fun ConnectDriveScreen(onFolderSelected: () -> Unit) {
                                                 style = MaterialTheme.typography.bodyMedium
                                         )
                                 }
+                                Spacer(modifier = Modifier.height(16.dp))
+                        }
+
+                        if (driveFolderName != null) {
+                                Text(
+                                        text = "Drive Destination:",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color =
+                                                MaterialTheme.colorScheme.onBackground.copy(
+                                                        alpha = 0.6f
+                                                ),
+                                        modifier = Modifier.align(Alignment.Start)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Box(
+                                        modifier =
+                                                Modifier.fillMaxWidth()
+                                                        .clip(RoundedCornerShape(12.dp))
+                                                        .background(
+                                                                MaterialTheme.colorScheme
+                                                                        .surfaceVariant.copy(
+                                                                        alpha = 0.5f
+                                                                )
+                                                        )
+                                                        .padding(16.dp)
+                                ) {
+                                        Text(
+                                                text = driveFolderName ?: "",
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                style = MaterialTheme.typography.bodyMedium
+                                        )
+                                }
                                 Spacer(modifier = Modifier.height(24.dp))
                         }
 
-                        // Select Folder Button
-                        if (folderPath == null) {
-                                Button(
-                                        onClick = {
-                                                if (Build.VERSION.SDK_INT >=
-                                                                Build.VERSION_CODES.R &&
-                                                                !Environment
-                                                                        .isExternalStorageManager()
-                                                ) {
-                                                        try {
-                                                                val intent =
-                                                                        Intent(
-                                                                                        Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION
-                                                                                )
-                                                                                .apply {
-                                                                                        data =
-                                                                                                Uri.parse(
-                                                                                                        "package:${context.packageName}"
-                                                                                                )
-                                                                                }
-                                                                context.startActivity(intent)
-                                                                Toast.makeText(
-                                                                                context,
-                                                                                "Please grant All Files Access to sync folders",
-                                                                                Toast.LENGTH_LONG
-                                                                        )
-                                                                        .show()
-                                                        } catch (e: Exception) {
-                                                                val intent =
-                                                                        Intent(
-                                                                                Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
-                                                                        )
-                                                                context.startActivity(intent)
-                                                        }
-                                                } else {
-                                                        folderPickerLauncher.launch(null)
-                                                }
-                                        },
-                                        modifier = Modifier.fillMaxWidth().height(56.dp),
-                                        shape = RoundedCornerShape(28.dp)
-                                ) {
-                                        Icon(Icons.Rounded.FolderOpen, contentDescription = null)
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                                text = "Select Folder",
-                                                fontSize = 16.sp,
-                                                fontWeight = FontWeight.SemiBold
-                                        )
-                                }
-                        } else {
-                                OutlinedButton(
-                                        onClick = {
-                                                if (Build.VERSION.SDK_INT >=
-                                                                Build.VERSION_CODES.R &&
-                                                                !Environment
-                                                                        .isExternalStorageManager()
-                                                ) {
-                                                        try {
-                                                                val intent =
-                                                                        Intent(
-                                                                                        Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION
-                                                                                )
-                                                                                .apply {
-                                                                                        data =
-                                                                                                Uri.parse(
-                                                                                                        "package:${context.packageName}"
-                                                                                                )
-                                                                                }
-                                                                context.startActivity(intent)
-                                                                Toast.makeText(
-                                                                                context,
-                                                                                "Please grant All Files Access to sync folders",
-                                                                                Toast.LENGTH_LONG
-                                                                        )
-                                                                        .show()
-                                                        } catch (e: Exception) {
-                                                                val intent =
-                                                                        Intent(
-                                                                                Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
-                                                                        )
-                                                                context.startActivity(intent)
-                                                        }
-                                                } else {
-                                                        folderPickerLauncher.launch(null)
-                                                }
-                                        },
-                                        modifier = Modifier.fillMaxWidth().height(56.dp),
-                                        shape = RoundedCornerShape(28.dp)
-                                ) {
-                                        Icon(Icons.Rounded.FolderOpen, contentDescription = null)
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                                text = "Change Folder",
-                                                fontSize = 16.sp,
-                                                fontWeight = FontWeight.SemiBold
-                                        )
-                                }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Continue Button
+                        // Select Local Folder Button
                         Button(
                                 onClick = {
-                                        if (folderPath != null) {
+                                        if (Build.VERSION.SDK_INT >=
+                                                        Build.VERSION_CODES.R &&
+                                                        !Environment
+                                                                .isExternalStorageManager()
+                                        ) {
+                                                // ... permission logic ...
+                                                try {
+                                                        val intent =
+                                                                Intent(
+                                                                                Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION
+                                                                        )
+                                                                        .apply {
+                                                                                data =
+                                                                                        Uri.parse(
+                                                                                                "package:${context.packageName}"
+                                                                                        )
+                                                                        }
+                                                        context.startActivity(intent)
+                                                } catch (e: Exception) {
+                                                        val intent =
+                                                                Intent(
+                                                                        Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
+                                                                )
+                                                        context.startActivity(intent)
+                                                }
+                                        } else {
+                                                folderPickerLauncher.launch(null)
+                                        }
+                                },
+                                modifier = Modifier.fillMaxWidth().height(56.dp),
+                                shape = RoundedCornerShape(28.dp),
+                                colors = if (folderPath != null) ButtonDefaults.outlinedButtonColors() else ButtonDefaults.buttonColors()
+                        ) {
+                                Icon(Icons.Rounded.FolderOpen, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                        text = if (folderPath == null) "Select Local Folder" else "Change Local Folder",
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Select Drive Folder Button
+                        Button(
+                                onClick = { showDrivePicker = true },
+                                modifier = Modifier.fillMaxWidth().height(56.dp),
+                                shape = RoundedCornerShape(28.dp),
+                                colors = if (driveFolderName != null) ButtonDefaults.outlinedButtonColors() else ButtonDefaults.buttonColors()
+                        ) {
+                                Icon(Icons.Rounded.Cloud, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                        text = if (driveFolderName == null) "Select Drive Folder" else "Change Drive Folder",
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                )
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        // Add Folder Button
+                        Button(
+                                onClick = {
+                                        if (folderPath != null && driveFolderId != null) {
                                                 isSyncing = true
                                                 scope.launch {
                                                         try {
+                                                                val folderName = folderPath!!.substringAfterLast("/")
+                                                                val existingFolder = repository.getFolders().find { it.localPath == folderPath }
+                                                                val newFolder = if (existingFolder != null) {
+                                                                    existingFolder.copy(
+                                                                        driveFolderId = driveFolderId,
+                                                                        driveFolderName = driveFolderName ?: "PowerSync"
+                                                                    )
+                                                                } else {
+                                                                    SyncFolder(
+                                                                        localPath = folderPath!!,
+                                                                        name = if (folderName.isNotEmpty()) folderName else "Sync Folder",
+                                                                        driveFolderId = driveFolderId,
+                                                                        driveFolderName = driveFolderName ?: "PowerSync"
+                                                                    )
+                                                                }
+                                                                repository.addFolder(newFolder)
+
                                                                 syncService.performSync(
                                                                         folderPath!!,
+                                                                        driveFolderId,
                                                                         true
                                                                 ) { _, _ -> }
                                                                 onFolderSelected()
@@ -284,7 +288,7 @@ fun ConnectDriveScreen(onFolderSelected: () -> Unit) {
                                         }
                                 },
                                 modifier = Modifier.fillMaxWidth().height(56.dp),
-                                enabled = folderPath != null && !isSyncing,
+                                enabled = folderPath != null && driveFolderId != null && !isSyncing,
                                 shape = RoundedCornerShape(28.dp)
                         ) {
                                 if (isSyncing) {
@@ -295,7 +299,7 @@ fun ConnectDriveScreen(onFolderSelected: () -> Unit) {
                                         )
                                 } else {
                                         Text(
-                                                text = "Continue",
+                                                text = "Add Folder & Sync",
                                                 fontSize = 16.sp,
                                                 fontWeight = FontWeight.SemiBold
                                         )
@@ -308,24 +312,17 @@ fun ConnectDriveScreen(onFolderSelected: () -> Unit) {
                         }
                 }
         }
-}
 
-// Helper function duplicated here to ensure independence
-// In a real app, this should be in a utils file
-@Suppress("UNUSED_PARAMETER")
-private fun getPathFromUri(context: Context, uri: Uri): String? {
-        val docId = uri.lastPathSegment ?: return null
-        if (docId.startsWith("primary:")) {
-                val relativePath = docId.substringAfter("primary:")
-                return "${Environment.getExternalStorageDirectory().absolutePath}/$relativePath"
-        }
-        return uri.path?.let { path ->
-                path.replace("/tree/", "").let { cleanPath ->
-                        if (cleanPath.startsWith("primary:")) {
-                                "${Environment.getExternalStorageDirectory().absolutePath}/${cleanPath.substringAfter("primary:")}"
-                        } else {
-                                cleanPath
-                        }
+        if (showDrivePicker) {
+            val driveService = remember { GoogleDriveService(context) }
+            DriveFolderPickerDialog(
+                driveService = driveService,
+                onDismissRequest = { showDrivePicker = false },
+                onFolderSelected = { id, name ->
+                    driveFolderId = id
+                    driveFolderName = name
+                    showDrivePicker = false
                 }
+            )
         }
 }

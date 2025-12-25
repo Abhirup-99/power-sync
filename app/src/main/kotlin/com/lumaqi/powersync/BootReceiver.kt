@@ -8,37 +8,41 @@ import androidx.work.WorkManager
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.Constraints
 import androidx.work.NetworkType
+import com.lumaqi.powersync.data.SyncSettingsRepository
 import java.util.concurrent.TimeUnit
 
 /**
  * BroadcastReceiver that restarts WorkManager sync after boot or app update.
  */
 class BootReceiver : BroadcastReceiver() {
-    
+
     companion object {
         private const val WORK_NAME = "sync_work"
     }
-    
+
     override fun onReceive(context: Context, intent: Intent) {
         DebugLogger.initialize(context)
-        
+
         val action = intent.action
         DebugLogger.i("BootReceiver", "Received action: $action")
-        
+
         when (action) {
             Intent.ACTION_BOOT_COMPLETED,
             Intent.ACTION_MY_PACKAGE_REPLACED -> {
-                DebugLogger.i("BootReceiver", "System event detected: $action - checking sync status")
+                DebugLogger.i(
+                        "BootReceiver",
+                        "System event detected: $action - checking sync status"
+                )
                 restartWorkManagerIfNeeded(context)
             }
         }
     }
-    
+
     private fun restartWorkManagerIfNeeded(context: Context) {
         try {
-            val prefs = context.getSharedPreferences(NativeSyncConfig.PREFS_NAME, Context.MODE_PRIVATE)
-            val syncActive = prefs.getBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, false)
-            
+            val repository = SyncSettingsRepository.getInstance(context)
+            val syncActive = repository.getBoolean(NativeSyncConfig.KEY_SYNC_ACTIVE, false)
+
             if (syncActive) {
                 DebugLogger.i("BootReceiver", "sync_active=true, starting WorkManager")
                 

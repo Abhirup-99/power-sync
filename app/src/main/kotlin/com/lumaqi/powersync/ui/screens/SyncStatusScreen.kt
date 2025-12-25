@@ -2,9 +2,11 @@ package com.lumaqi.powersync.ui.screens
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.os.PowerManager
@@ -14,6 +16,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.rounded.Chat
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -90,6 +93,8 @@ fun SyncStatusScreen(
     // Progress States
     var syncProgressCount by remember { mutableIntStateOf(0) }
     var totalFilesToSync by remember { mutableIntStateOf(0) }
+    var currentFileProgress by remember { mutableFloatStateOf(0f) }
+    var currentFileName by remember { mutableStateOf<String?>(null) }
 
     // Function to refresh data
     fun refreshData() {
@@ -236,8 +241,10 @@ fun SyncStatusScreen(
                     isSyncing = true
                 }
                 is SyncStatusManager.SyncEvent.SyncProgress -> {
-                    syncProgressCount = event.uploaded
-                    totalFilesToSync = event.total
+                    syncProgressCount = event.uploadedFiles
+                    totalFilesToSync = event.totalFiles
+                    currentFileProgress = event.currentFileProgress
+                    currentFileName = event.currentFileName
                     refreshData()
                 }
                 is SyncStatusManager.SyncEvent.SyncFinished -> {
@@ -274,6 +281,16 @@ fun SyncStatusScreen(
                 TopAppBar(
                         title = { Text("PowerSync", fontWeight = FontWeight.Bold) },
                         actions = {
+                            IconButton(onClick = {
+                                val intent = Intent(Intent.ACTION_SENDTO).apply {
+                                    data = Uri.parse("mailto:hello@lumaqi.com")
+                                    putExtra(Intent.EXTRA_SUBJECT, "PowerSync Chat Request")
+                                }
+                                context.startActivity(intent)
+                            }) {
+                                Icon(Icons.Rounded.Chat, contentDescription = "Chat")
+                            }
+
                             var showMenu by remember { mutableStateOf(false) }
                             
                             IconButton(onClick = { showMenu = true }) {
@@ -378,7 +395,11 @@ fun SyncStatusScreen(
                     hasStoragePermission = hasStoragePermission,
                     hasNotificationPermission = hasNotificationPermission,
                     driveStorageTotal = driveStorageTotal,
-                    driveStorageUsed = driveStorageUsed
+                    driveStorageUsed = driveStorageUsed,
+                    currentFileName = currentFileName,
+                    currentFileProgress = currentFileProgress,
+                    syncProgressCount = syncProgressCount,
+                    totalFilesToSync = totalFilesToSync
                 )
                 1 -> SyncHistoryTabContent(database)
                 2 -> SettingsTabContent(
@@ -419,8 +440,8 @@ private fun startSync(
             // Parallel Sync
             val jobs = folders.filter { it.isEnabled }.map { folder ->
                 scope.async(Dispatchers.IO) {
-                    syncService.performSync(folder.localPath, folder.driveFolderId, true) { uploaded, total ->
-                        SyncStatusManager.notifySyncProgress(uploaded, total)
+                    syncService.performSync(folder.localPath, folder.driveFolderId, true) { uploaded, total, progress, fileName ->
+                        SyncStatusManager.notifySyncProgress(uploaded, total, progress, fileName)
                     }
                 }
             }

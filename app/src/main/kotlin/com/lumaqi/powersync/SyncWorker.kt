@@ -162,15 +162,20 @@ class SyncWorker(appContext: Context, workerParams: WorkerParameters) :
 
                 DebugLogger.i("SyncWorker", "Syncing folder: ${folder.name} (${folder.localPath})")
                 val result =
-                        syncEngine.performSync(folder.localPath, folder.driveFolderId) { uploaded, total ->
+                        syncEngine.performSync(folder.localPath, folder.driveFolderId) { uploaded, total, progress, fileName ->
                             DebugLogger.i(
                                     "SyncWorker",
-                                    "Sync progress for ${folder.name}: $uploaded/$total"
+                                    "Sync progress for ${folder.name}: $uploaded/$total (${(progress * 100).toInt()}%) $fileName"
                             )
-                            SyncStatusManager.notifySyncProgress(uploaded, total)
-                            setForeground(
-                                    createForegroundInfo("Syncing ${folder.name}: $uploaded/$total")
-                            )
+                            SyncStatusManager.notifySyncProgress(uploaded, total, progress, fileName)
+                            
+                            val progressText = if (fileName != null) {
+                                "Syncing ${folder.name}: $uploaded/$total (${(progress * 100).toInt()}%) $fileName"
+                            } else {
+                                "Syncing ${folder.name}: $uploaded/$total"
+                            }
+                            
+                            setForeground(createForegroundInfo(progressText))
                         }
 
                 if (result < 0) {

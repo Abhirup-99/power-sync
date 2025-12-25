@@ -8,7 +8,12 @@ object SyncStatusManager {
     sealed class SyncEvent {
         object FileChanged : SyncEvent()
         object SyncStarted : SyncEvent()
-        data class SyncProgress(val uploaded: Int, val total: Int) : SyncEvent()
+        data class SyncProgress(
+            val uploadedFiles: Int,
+            val totalFiles: Int,
+            val currentFileProgress: Float = 0f,
+            val currentFileName: String? = null
+        ) : SyncEvent()
         object SyncFinished : SyncEvent()
     }
 
@@ -23,8 +28,8 @@ object SyncStatusManager {
         _events.tryEmit(SyncEvent.SyncStarted)
     }
 
-    fun notifySyncProgress(uploaded: Int, total: Int) {
-        _events.tryEmit(SyncEvent.SyncProgress(uploaded, total))
+    fun notifySyncProgress(uploadedFiles: Int, totalFiles: Int, currentFileProgress: Float = 0f, currentFileName: String? = null) {
+        _events.tryEmit(SyncEvent.SyncProgress(uploadedFiles, totalFiles, currentFileProgress, currentFileName))
     }
 
     fun notifySyncFinished() {

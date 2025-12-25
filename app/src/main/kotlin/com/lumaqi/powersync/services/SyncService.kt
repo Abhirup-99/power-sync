@@ -80,7 +80,7 @@ class SyncService private constructor(private val context: Context) {
             folderPath: String,
             driveFolderId: String? = null,
             startBackgroundService: Boolean,
-            onProgress: (uploaded: Int, total: Int) -> Unit
+            onProgress: (suspend (uploaded: Int, total: Int, progress: Float, fileName: String?) -> Unit)? = null
     ): Int {
         DebugLogger.i(
                 "SyncService",

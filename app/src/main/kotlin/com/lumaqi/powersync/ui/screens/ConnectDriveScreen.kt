@@ -272,7 +272,7 @@ fun ConnectDriveScreen(onFolderSelected: () -> Unit) {
                                                                         folderPath!!,
                                                                         driveFolderId,
                                                                         true
-                                                                ) { _, _ -> }
+                                                                ) { _, _, _, _ -> }
                                                                 onFolderSelected()
                                                         } catch (e: Exception) {
                                                                 Toast.makeText(

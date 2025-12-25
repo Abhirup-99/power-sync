@@ -133,8 +133,8 @@ class FileMonitorService : Service() {
                                     folderPath = folder.localPath,
                                     driveFolderId = folder.driveFolderId,
                                     startBackgroundService = false, // We ARE the background service
-                                    onProgress = { uploaded, total ->
-                                        SyncStatusManager.notifySyncProgress(uploaded, total)
+                                    onProgress = { uploaded, total, progress, fileName ->
+                                        SyncStatusManager.notifySyncProgress(uploaded, total, progress, fileName)
                                     }
                             )
                         }

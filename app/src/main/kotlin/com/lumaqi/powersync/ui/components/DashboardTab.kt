@@ -38,7 +38,11 @@ fun DashboardTabContent(
     hasStoragePermission: Boolean,
     hasNotificationPermission: Boolean,
     driveStorageTotal: Long,
-    driveStorageUsed: Long
+    driveStorageUsed: Long,
+    currentFileName: String? = null,
+    currentFileProgress: Float = 0f,
+    syncProgressCount: Int = 0,
+    totalFilesToSync: Int = 0
 ) {
     val context = LocalContext.current
     
@@ -76,13 +80,37 @@ fun DashboardTabContent(
                 
                 Text(
                     text = when {
-                        isSyncing -> "Syncing..."
+                        isSyncing -> {
+                            if (currentFileName != null) "Syncing: $currentFileName"
+                            else "Syncing..."
+                        }
                         totalPendingFiles > 0 -> "$totalPendingFiles files pending"
                         else -> "All synced"
                     },
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
+                
+                if (isSyncing && totalFilesToSync > 0) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Column(
+                        modifier = Modifier.padding(horizontal = 32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        LinearProgressIndicator(
+                            progress = { currentFileProgress },
+                            modifier = Modifier.fillMaxWidth().height(8.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "File ${syncProgressCount + 1} of $totalFilesToSync (${(currentFileProgress * 100).toInt()}%)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
                 
                 Text(
                     text = if (lastSyncTime > 0) "Last sync: ${DateUtils.getRelativeTimeSpanString(lastSyncTime)}" else "No syncs yet",

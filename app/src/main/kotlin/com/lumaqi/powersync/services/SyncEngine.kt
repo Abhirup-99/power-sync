@@ -6,6 +6,7 @@ import android.net.NetworkCapabilities
 import android.webkit.MimeTypeMap
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
+import com.google.api.client.googleapis.media.MediaHttpUploader
 import com.google.api.client.http.FileContent
 import com.google.api.client.http.javanet.NetHttpTransport
 import com.google.api.client.json.gson.GsonFactory
@@ -18,8 +19,10 @@ import com.lumaqi.powersync.NativeSyncDatabase
 import com.lumaqi.powersync.data.SyncSettingsRepository
 import java.io.File
 import java.util.Collections
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 
 class SyncEngine private constructor(private val context: Context) {
@@ -42,12 +45,13 @@ class SyncEngine private constructor(private val context: Context) {
 
         private val folderMutex = Mutex()
         private val syncMutex = Mutex()
+        private val uploadSemaphore = Semaphore(3) // Limit concurrent uploads to handle large files better
     }
 
     suspend fun performSync(
             folderPath: String,
             driveFolderId: String? = null,
-            onProgress: (suspend (uploaded: Int, total: Int) -> Unit)? = null
+            onProgress: (suspend (uploaded: Int, total: Int, currentProgress: Float, currentFileName: String?) -> Unit)? = null
     ): Int {
         return syncMutex.withLock {
             withContext(Dispatchers.IO) {
@@ -102,9 +106,9 @@ class SyncEngine private constructor(private val context: Context) {
 
                     DebugLogger.i("SyncEngine", "Found ${unsyncedFiles.size} files to sync")
 
-                    var successCount = 0
-                    val successfulUploads = mutableListOf<Pair<File, String>>()
-                    onProgress?.invoke(0, unsyncedFiles.size)
+                    val successCount = AtomicInteger(0)
+                    val successfulUploads = Collections.synchronizedList(mutableListOf<Pair<File, String>>())
+                    onProgress?.invoke(0, unsyncedFiles.size, 0f, null)
 
                     // Get target Drive folder
                     DebugLogger.i("SyncEngine", "Determining target Drive folder")
@@ -135,42 +139,47 @@ class SyncEngine private constructor(private val context: Context) {
                     val parallelUploads = repository.getBoolean(NativeSyncConfig.KEY_PARALLEL_UPLOADS, true)
                     
                     if (parallelUploads) {
-                        val jobs = unsyncedFiles.map { file ->
-                            async {
-                                if (!isFileSizeAllowed(file)) {
-                                    DebugLogger.i("SyncEngine", "File size not allowed for current network: ${file.name}")
-                                    return@async null
+                        coroutineScope {
+                            unsyncedFiles.map { file ->
+                                launch {
+                                    if (!isFileSizeAllowed(file)) {
+                                        DebugLogger.i("SyncEngine", "File size not allowed for current network: ${file.name}")
+                                        return@launch
+                                    }
+                                    
+                                    // Use semaphore to limit concurrency
+                                    uploadSemaphore.acquire()
+                                    try {
+                                        val driveFileId = uploadToDrive(driveService, file, parentFolderId) { progress ->
+                                            runBlocking {
+                                                onProgress?.invoke(successCount.get(), unsyncedFiles.size, progress, file.name)
+                                            }
+                                        }
+                                        
+                                        if (driveFileId != null) {
+                                            database.markAsSynced(
+                                                file.absolutePath,
+                                                NativeSyncConfig.STORAGE_RECORDINGS_FOLDER,
+                                                driveFileId
+                                            )
+                                            DebugLogger.i("SyncEngine", "Successfully uploaded: ${file.name} (ID: $driveFileId)")
+                                            successfulUploads.add(file to driveFileId)
+                                            val currentSuccess = successCount.incrementAndGet()
+                                            onProgress?.invoke(currentSuccess, unsyncedFiles.size, 1f, file.name)
+                                        } else {
+                                            DebugLogger.e("SyncEngine", "Failed to upload: ${file.name}")
+                                        }
+                                    } finally {
+                                        uploadSemaphore.release()
+                                    }
                                 }
-                                
-                                val driveFileId = uploadToDrive(driveService, file, parentFolderId)
-                                if (driveFileId != null) {
-                                    database.markAsSynced(
-                                        file.absolutePath,
-                                        NativeSyncConfig.STORAGE_RECORDINGS_FOLDER,
-                                        driveFileId
-                                    )
-                                    DebugLogger.i("SyncEngine", "Successfully uploaded: ${file.name} (ID: $driveFileId)")
-                                    file to driveFileId
-                                } else {
-                                    DebugLogger.e("SyncEngine", "Failed to upload: ${file.name}")
-                                    null
-                                }
-                            }
-                        }
-                        
-                        jobs.forEachIndexed { index, job ->
-                            val result = job.await()
-                            if (result != null) {
-                                successfulUploads.add(result)
-                                successCount++
-                            }
-                            onProgress?.invoke(index + 1, unsyncedFiles.size)
+                            }.joinAll()
                         }
                     } else {
                         unsyncedFiles.forEachIndexed { index, file ->
                             if (!isFileSizeAllowed(file)) {
                                 DebugLogger.i("SyncEngine", "File size not allowed for current network: ${file.name}")
-                                onProgress?.invoke(index + 1, unsyncedFiles.size)
+                                onProgress?.invoke(successCount.get(), unsyncedFiles.size, 0f, null)
                                 return@forEachIndexed
                             }
 
@@ -178,7 +187,12 @@ class SyncEngine private constructor(private val context: Context) {
                                 "SyncEngine",
                                 "Attempting to upload file ${index + 1}/${unsyncedFiles.size}: ${file.name}"
                             )
-                            val driveFileId = uploadToDrive(driveService, file, parentFolderId)
+                            val driveFileId = uploadToDrive(driveService, file, parentFolderId) { progress ->
+                                runBlocking {
+                                    onProgress?.invoke(successCount.get(), unsyncedFiles.size, progress, file.name)
+                                }
+                            }
+                            
                             if (driveFileId != null) {
                                 database.markAsSynced(
                                     file.absolutePath,
@@ -186,15 +200,16 @@ class SyncEngine private constructor(private val context: Context) {
                                     driveFileId
                                 )
                                 successfulUploads.add(file to driveFileId)
-                                successCount++
+                                val currentSuccess = successCount.incrementAndGet()
                                 DebugLogger.i(
                                     "SyncEngine",
                                     "Successfully uploaded: ${file.name} (ID: $driveFileId)"
                                 )
+                                onProgress?.invoke(currentSuccess, unsyncedFiles.size, 1f, file.name)
                             } else {
                                 DebugLogger.e("SyncEngine", "Failed to upload: ${file.name}")
+                                onProgress?.invoke(successCount.get(), unsyncedFiles.size, 0f, null)
                             }
-                            onProgress?.invoke(index + 1, unsyncedFiles.size)
                         }
                     }
 
@@ -252,7 +267,12 @@ class SyncEngine private constructor(private val context: Context) {
         }
     }
 
-    private fun uploadToDrive(driveService: Drive, file: File, parentFolderId: String): String? {
+    private fun uploadToDrive(
+        driveService: Drive,
+        file: File,
+        parentFolderId: String,
+        onByteProgress: ((progress: Float) -> Unit)? = null
+    ): String? {
         return try {
             // Check if file already exists in the folder
             val escapedName = escapeQueryString(file.name)
@@ -269,9 +289,9 @@ class SyncEngine private constructor(private val context: Context) {
             if (result.files.isNotEmpty()) {
                 val existingFile = result.files[0]
                 // Simple check: if size matches, assume it's the same file
-                // Note: Drive API returns size as Long (String in JSON), File.length() is Long
                 if (existingFile.getSize() == file.length()) {
                     DebugLogger.i("SyncEngine", "File already exists in Drive: ${file.name}")
+                    onByteProgress?.invoke(1f)
                     return existingFile.id
                 }
             }
@@ -286,16 +306,34 @@ class SyncEngine private constructor(private val context: Context) {
                             ?: "application/octet-stream"
             val mediaContent = FileContent(mimeType, file)
 
-            val uploadedFile =
-                    driveService
-                            .files()
-                            .create(fileMetadata, mediaContent)
-                            .setFields("id")
-                            .execute()
+            val createRequest = driveService.files().create(fileMetadata, mediaContent)
+            
+            // Configure resumable upload for large files
+            val uploader = createRequest.mediaHttpUploader
+            uploader.isDirectUploadEnabled = false // Force resumable upload
+            uploader.setProgressListener { progressUploader ->
+                when (progressUploader.uploadState) {
+                    MediaHttpUploader.UploadState.INITIATION_STARTED -> {
+                        DebugLogger.i("SyncEngine", "Upload initiation started: ${file.name}")
+                    }
+                    MediaHttpUploader.UploadState.INITIATION_COMPLETE -> {
+                        DebugLogger.i("SyncEngine", "Upload initiation complete: ${file.name}")
+                    }
+                    MediaHttpUploader.UploadState.MEDIA_IN_PROGRESS -> {
+                        onByteProgress?.invoke(progressUploader.progress.toFloat())
+                    }
+                    MediaHttpUploader.UploadState.MEDIA_COMPLETE -> {
+                        DebugLogger.i("SyncEngine", "Upload complete: ${file.name}")
+                        onByteProgress?.invoke(1f)
+                    }
+                    else -> {}
+                }
+            }
 
+            val uploadedFile = createRequest.setFields("id").execute()
             uploadedFile.id
         } catch (e: Exception) {
-            DebugLogger.e("SyncEngine", "Drive upload error: ${e.message}")
+            DebugLogger.e("SyncEngine", "Drive upload error for ${file.name}: ${e.message}")
             null
         }
     }

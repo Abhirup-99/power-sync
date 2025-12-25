@@ -1,6 +1,8 @@
 package com.lumaqi.powersync.services
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.webkit.MimeTypeMap
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
@@ -16,10 +18,9 @@ import com.lumaqi.powersync.NativeSyncDatabase
 import com.lumaqi.powersync.data.SyncSettingsRepository
 import java.io.File
 import java.util.Collections
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 
 class SyncEngine private constructor(private val context: Context) {
 
@@ -131,29 +132,69 @@ class SyncEngine private constructor(private val context: Context) {
                             }
                     DebugLogger.i("SyncEngine", "Parent folder ID: $parentFolderId")
 
-                    unsyncedFiles.forEachIndexed { index, file ->
-                        DebugLogger.i(
+                    val parallelUploads = repository.getBoolean(NativeSyncConfig.KEY_PARALLEL_UPLOADS, true)
+                    
+                    if (parallelUploads) {
+                        val jobs = unsyncedFiles.map { file ->
+                            async {
+                                if (!isFileSizeAllowed(file)) {
+                                    DebugLogger.i("SyncEngine", "File size not allowed for current network: ${file.name}")
+                                    return@async null
+                                }
+                                
+                                val driveFileId = uploadToDrive(driveService, file, parentFolderId)
+                                if (driveFileId != null) {
+                                    database.markAsSynced(
+                                        file.absolutePath,
+                                        NativeSyncConfig.STORAGE_RECORDINGS_FOLDER,
+                                        driveFileId
+                                    )
+                                    DebugLogger.i("SyncEngine", "Successfully uploaded: ${file.name} (ID: $driveFileId)")
+                                    file to driveFileId
+                                } else {
+                                    DebugLogger.e("SyncEngine", "Failed to upload: ${file.name}")
+                                    null
+                                }
+                            }
+                        }
+                        
+                        jobs.forEachIndexed { index, job ->
+                            val result = job.await()
+                            if (result != null) {
+                                successfulUploads.add(result)
+                                successCount++
+                            }
+                            onProgress?.invoke(index + 1, unsyncedFiles.size)
+                        }
+                    } else {
+                        unsyncedFiles.forEachIndexed { index, file ->
+                            if (!isFileSizeAllowed(file)) {
+                                DebugLogger.i("SyncEngine", "File size not allowed for current network: ${file.name}")
+                                onProgress?.invoke(index + 1, unsyncedFiles.size)
+                                return@forEachIndexed
+                            }
+
+                            DebugLogger.i(
                                 "SyncEngine",
                                 "Attempting to upload file ${index + 1}/${unsyncedFiles.size}: ${file.name}"
-                        )
-                        val driveFileId = uploadToDrive(driveService, file, parentFolderId)
-                        if (driveFileId != null) {
-                            database.markAsSynced(
+                            )
+                            val driveFileId = uploadToDrive(driveService, file, parentFolderId)
+                            if (driveFileId != null) {
+                                database.markAsSynced(
                                     file.absolutePath,
                                     NativeSyncConfig.STORAGE_RECORDINGS_FOLDER,
                                     driveFileId
-                            )
-                            successfulUploads.add(file to driveFileId)
-                            successCount++
-                            DebugLogger.i(
+                                )
+                                successfulUploads.add(file to driveFileId)
+                                successCount++
+                                DebugLogger.i(
                                     "SyncEngine",
                                     "Successfully uploaded: ${file.name} (ID: $driveFileId)"
-                            )
-                        } else {
-                            DebugLogger.e("SyncEngine", "Failed to upload: ${file.name}")
-                        }
-                        if (successCount % 5 == 0 || successCount == unsyncedFiles.size) {
-                            onProgress?.invoke(successCount, unsyncedFiles.size)
+                                )
+                            } else {
+                                DebugLogger.e("SyncEngine", "Failed to upload: ${file.name}")
+                            }
+                            onProgress?.invoke(index + 1, unsyncedFiles.size)
                         }
                     }
 
@@ -261,5 +302,34 @@ class SyncEngine private constructor(private val context: Context) {
 
     private fun updateLastSyncTime() {
         repository.setLong(NativeSyncConfig.KEY_LAST_SYNC_TIME, System.currentTimeMillis())
+    }
+
+    private fun isFileSizeAllowed(file: File): Boolean {
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+
+        val limitStr = if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+            repository.getString(NativeSyncConfig.KEY_WIFI_UPLOAD_LIMIT, "no limit")
+        } else if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) {
+            repository.getString(NativeSyncConfig.KEY_MOBILE_UPLOAD_LIMIT, "< 20 MB")
+        } else {
+            "no limit"
+        }
+
+        if (limitStr == "no limit") return true
+
+        val limitBytes = parseSizeLimit(limitStr!!)
+        return file.length() <= limitBytes
+    }
+
+    private fun parseSizeLimit(limitStr: String): Long {
+        return when {
+            limitStr.contains("< 10 MB") -> 10 * 1024 * 1024L
+            limitStr.contains("< 20 MB") -> 20 * 1024 * 1024L
+            limitStr.contains("< 50 MB") -> 50 * 1024 * 1024L
+            limitStr.contains("< 100 MB") -> 100 * 1024 * 1024L
+            else -> Long.MAX_VALUE
+        }
     }
 }

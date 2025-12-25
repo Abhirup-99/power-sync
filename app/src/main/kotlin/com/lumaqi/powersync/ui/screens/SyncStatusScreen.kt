@@ -3,6 +3,8 @@ package com.lumaqi.powersync.ui.screens
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Environment
 import android.os.PowerManager
@@ -42,15 +44,14 @@ import com.lumaqi.powersync.ui.components.SettingsTabContent
 import com.lumaqi.powersync.ui.components.SyncHistoryTabContent
 import java.io.File
 import java.util.Collections
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SyncStatusScreen(onConfigureFolders: () -> Unit) {
+fun SyncStatusScreen(
+    onConfigureFolders: () -> Unit,
+    onNavigateToSynchronizationSettings: () -> Unit
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
@@ -75,6 +76,8 @@ fun SyncStatusScreen(onConfigureFolders: () -> Unit) {
 
     var driveStorageTotal by remember { mutableLongStateOf(0L) }
     var driveStorageUsed by remember { mutableLongStateOf(0L) }
+
+    var showMobileWarning by remember { mutableStateOf(false) }
 
     // Aggregate stats
     var totalSyncedFiles by remember { mutableIntStateOf(0) }
@@ -245,13 +248,49 @@ fun SyncStatusScreen(onConfigureFolders: () -> Unit) {
         }
     }
 
+    if (showMobileWarning) {
+        AlertDialog(
+            onDismissRequest = { showMobileWarning = false },
+            title = { Text("Sync on Mobile Network?") },
+            text = { Text("You are currently on a mobile network. Syncing may consume significant data.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showMobileWarning = false
+                    startSync(scope, folders, context, refreshData = { refreshData() }, setSyncing = { isSyncing = it })
+                }) {
+                    Text("Sync Anyway")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMobileWarning = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Scaffold(
             topBar = {
                 TopAppBar(
                         title = { Text("PowerSync", fontWeight = FontWeight.Bold) },
                         actions = {
-                            IconButton(onClick = { /* Menu action */}) {
+                            var showMenu by remember { mutableStateOf(false) }
+                            
+                            IconButton(onClick = { showMenu = true }) {
                                 Icon(Icons.Default.MoreVert, contentDescription = "Menu")
+                            }
+                            
+                            DropdownMenu(
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Synchronization") },
+                                    onClick = {
+                                        showMenu = false
+                                        onNavigateToSynchronizationSettings()
+                                    }
+                                )
                             }
                         }
                 )
@@ -276,37 +315,17 @@ fun SyncStatusScreen(onConfigureFolders: () -> Unit) {
                                 return@ExtendedFloatingActionButton
                             }
 
-                            scope.launch {
-                                isSyncing = true
-                                syncProgressCount = 0
-                                totalFilesToSync = 0
-                                Toast.makeText(context, "Sync started...", Toast.LENGTH_SHORT).show()
-                                
-                                try {
-                                    val syncService = SyncService.getInstance(context)
-                                    SyncStatusManager.notifySyncStarted()
-                                    // Parallel Sync
-                                    val jobs = folders.filter { it.isEnabled }.map { folder ->
-                                        async(Dispatchers.IO) {
-                                            syncService.performSync(folder.localPath, folder.driveFolderId, true) { uploaded, total ->
-                                                // Note: This progress is per-folder and might jump around in the UI
-                                                // Ideally we'd aggregate progress, but for now we just show activity
-                                                SyncStatusManager.notifySyncProgress(uploaded, total)
-                                            }
-                                        }
-                                    }
-                                    
-                                    val results = jobs.awaitAll()
-                                    val totalUploaded = results.sum().coerceAtLeast(0)
-                                    
-                                    Toast.makeText(context, "Sync completed: $totalUploaded files uploaded", Toast.LENGTH_SHORT).show()
-                                } catch (e: Exception) {
-                                    Toast.makeText(context, "Sync failed: ${e.message}", Toast.LENGTH_LONG).show()
-                                } finally {
-                                    isSyncing = false
-                                    refreshData()
-                                    SyncStatusManager.notifySyncFinished()
-                                }
+                            // Check for mobile network warning
+                            val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                            val network = connectivityManager.activeNetwork
+                            val capabilities = connectivityManager.getNetworkCapabilities(network)
+                            val isMobile = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
+                            val warnOnMobile = repository.getBoolean(NativeSyncConfig.KEY_WARN_ON_MOBILE, true)
+
+                            if (isMobile && warnOnMobile) {
+                                showMobileWarning = true
+                            } else {
+                                startSync(scope, folders, context, refreshData = { refreshData() }, setSyncing = { isSyncing = it })
                             }
                         },
                         icon = {
@@ -382,3 +401,40 @@ fun SyncStatusScreen(onConfigureFolders: () -> Unit) {
 
 // Helper class for 4 values
 data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+
+private fun startSync(
+    scope: CoroutineScope,
+    folders: List<SyncFolder>,
+    context: Context,
+    refreshData: () -> Unit,
+    setSyncing: (Boolean) -> Unit
+) {
+    scope.launch {
+        setSyncing(true)
+        Toast.makeText(context, "Sync started...", Toast.LENGTH_SHORT).show()
+        
+        try {
+            val syncService = SyncService.getInstance(context)
+            SyncStatusManager.notifySyncStarted()
+            // Parallel Sync
+            val jobs = folders.filter { it.isEnabled }.map { folder ->
+                scope.async(Dispatchers.IO) {
+                    syncService.performSync(folder.localPath, folder.driveFolderId, true) { uploaded, total ->
+                        SyncStatusManager.notifySyncProgress(uploaded, total)
+                    }
+                }
+            }
+            
+            val results = jobs.awaitAll()
+            val totalUploaded = results.sum().coerceAtLeast(0)
+            
+            Toast.makeText(context, "Sync completed: $totalUploaded files uploaded", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(context, "Sync failed: ${e.message}", Toast.LENGTH_LONG).show()
+        } finally {
+            setSyncing(false)
+            refreshData()
+            SyncStatusManager.notifySyncFinished()
+        }
+    }
+}

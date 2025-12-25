@@ -18,6 +18,7 @@ import com.lumaqi.powersync.ui.screens.ConnectDriveScreen
 import com.lumaqi.powersync.ui.screens.LoginScreen
 import com.lumaqi.powersync.ui.screens.OnboardingScreen
 import com.lumaqi.powersync.ui.screens.SyncStatusScreen
+import com.lumaqi.powersync.ui.screens.SynchronizationSettingsScreen
 
 @Composable
 fun AppNavHost(navController: NavHostController, isSignedIn: Boolean) {
@@ -92,8 +93,13 @@ private fun NavGraphBuilder.mainGraph(navController: NavHostController, hasFolde
 
         composable(Screen.SyncSelection.route) {
             SyncStatusScreen(
-                    onConfigureFolders = { navController.navigate(Screen.ConnectDrive.route) }
+                    onConfigureFolders = { navController.navigate(Screen.ConnectDrive.route) },
+                    onNavigateToSynchronizationSettings = { navController.navigate(Screen.SynchronizationSettings.route) }
             )
+        }
+
+        composable(Screen.SynchronizationSettings.route) {
+            SynchronizationSettingsScreen(onBack = { navController.popBackStack() })
         }
     }
 }

@@ -3,7 +3,12 @@ package com.lumaqi.powersync
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.os.BatteryManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
@@ -39,6 +44,12 @@ class SyncWorker(appContext: Context, workerParams: WorkerParameters) :
                 return Result.success()
             }
 
+            // Check constraints manually for more precision
+            if (!checkManualConstraints()) {
+                DebugLogger.i("SyncWorker", "Manual constraints not met, skipping")
+                return Result.success()
+            }
+
             // Show foreground notification for long-running work
             DebugLogger.i("SyncWorker", "Setting foreground service info")
             setForeground(createForegroundInfo("Syncing files..."))
@@ -54,11 +65,80 @@ class SyncWorker(appContext: Context, workerParams: WorkerParameters) :
             } else {
                 updateLastSyncTime() // Update time even if partial success, so we don't retry immediately
                 DebugLogger.w("SyncWorker", "=== SYNC WORKER COMPLETED WITH ISSUES ===")
-                return Result.success() // Don't retry on partial failures
+                
+                val retrySetting = repository.getString(NativeSyncConfig.KEY_RETRY_AUTOMATICALLY, "for both manual and automatic sync")
+                if (retrySetting!!.contains("automatic") || retrySetting.contains("both")) {
+                    if (runAttemptCount < getMaxRetries()) {
+                        DebugLogger.i("SyncWorker", "Retrying due to issues (Attempt ${runAttemptCount + 1})")
+                        return Result.retry()
+                    }
+                }
+                return Result.success()
             }
         } catch (e: Exception) {
             DebugLogger.e("SyncWorker", "Sync error in doWork", e)
-            return Result.retry()
+            val retrySetting = repository.getString(NativeSyncConfig.KEY_RETRY_AUTOMATICALLY, "for both manual and automatic sync")
+            if (retrySetting!!.contains("automatic") || retrySetting.contains("both")) {
+                if (runAttemptCount < getMaxRetries()) {
+                    return Result.retry()
+                }
+            }
+            return Result.failure()
+        }
+    }
+
+    private fun checkManualConstraints(): Boolean {
+        // Battery Level
+        val batteryStatus: Intent? = applicationContext.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val level: Int = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val scale: Int = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+        val batteryPct = if (level != -1 && scale != -1) (level * 100 / scale.toFloat()) else 100f
+        
+        val thresholdStr = repository.getString(NativeSyncConfig.KEY_BATTERY_LEVEL_THRESHOLD, "50%")
+        val threshold = thresholdStr?.replace("%", "")?.toIntOrNull() ?: 50
+        
+        if (batteryPct < threshold) {
+            DebugLogger.i("SyncWorker", "Battery level too low: $batteryPct% < $threshold%")
+            return false
+        }
+
+        // Network constraints
+        val connectivityManager = applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+
+        // Metered Wi-Fi
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+            val isMetered = !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+            val allowedOnMetered = repository.getBoolean(NativeSyncConfig.KEY_ALLOWED_ON_METERED_WIFI, true)
+            if (isMetered && !allowedOnMetered) {
+                DebugLogger.i("SyncWorker", "On metered Wi-Fi but not allowed")
+                return false
+            }
+        }
+
+        // Roaming
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) {
+            val isRoaming = !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_ROAMING)
+            val allowedOnRoaming = repository.getBoolean(NativeSyncConfig.KEY_ALLOWED_ON_MOBILE_ROAMING, false)
+            if (isRoaming && !allowedOnRoaming) {
+                DebugLogger.i("SyncWorker", "On roaming but not allowed")
+                return false
+            }
+        }
+
+        return true
+    }
+
+    private fun getMaxRetries(): Int {
+        val maxAttemptsStr = repository.getString(NativeSyncConfig.KEY_MAX_RETRY_ATTEMPTS, "1 time")
+        return when {
+            maxAttemptsStr!!.contains("1 time") -> 1
+            maxAttemptsStr.contains("2 times") -> 2
+            maxAttemptsStr.contains("3 times") -> 3
+            maxAttemptsStr.contains("5 times") -> 5
+            maxAttemptsStr.contains("unlimited") -> Int.MAX_VALUE
+            else -> 1
         }
     }
 

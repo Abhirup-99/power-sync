@@ -5,6 +5,7 @@ sealed class Screen(val route: String) {
     object Onboarding : Screen("onboarding")
     object ConnectDrive : Screen("connect_drive")
     object SyncSelection : Screen("sync_selection")
+    object SynchronizationSettings : Screen("synchronization_settings")
 }
 
 sealed class RootRoute(val route: String) {

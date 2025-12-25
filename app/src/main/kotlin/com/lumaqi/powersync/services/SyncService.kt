@@ -102,13 +102,26 @@ class SyncService private constructor(private val context: Context) {
         }
     }
 
-    private fun startWorkManager() {
-        val constraints =
-                Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+    fun startWorkManager() {
+        val intervalMinutes = parseSchedule(repository.getString(NativeSyncConfig.KEY_AUTOSYNC_SCHEDULE, "Every 2 hours") ?: "Every 2 hours")
+        val onlyWhileCharging = repository.getBoolean(NativeSyncConfig.KEY_ONLY_WHILE_CHARGING, false)
+        val internetConnection = repository.getString(NativeSyncConfig.KEY_INTERNET_CONNECTION_TYPE, "Using Wi-Fi only") ?: "Using Wi-Fi only"
+        
+        val networkType = when (internetConnection) {
+            "Using Wi-Fi only" -> NetworkType.UNMETERED
+            "Using any connection" -> NetworkType.CONNECTED
+            else -> NetworkType.CONNECTED
+        }
+
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(networkType)
+            .setRequiresCharging(onlyWhileCharging)
+            .setRequiresBatteryNotLow(true) // Basic check, more specific check in Worker
+            .build()
 
         val workRequest =
                 PeriodicWorkRequestBuilder<SyncWorker>(
-                                NativeSyncConfig.SYNC_INTERVAL_MINUTES,
+                                intervalMinutes,
                                 TimeUnit.MINUTES
                         )
                         .setConstraints(constraints)
@@ -120,7 +133,19 @@ class SyncService private constructor(private val context: Context) {
                 workRequest
         )
 
-        DebugLogger.i("SyncService", "WorkManager sync scheduled")
+        DebugLogger.i("SyncService", "WorkManager sync scheduled with interval: $intervalMinutes min, charging: $onlyWhileCharging, network: $networkType")
+    }
+
+    private fun parseSchedule(schedule: String): Long {
+        return when {
+            schedule.contains("15 minutes") -> 15L
+            schedule.contains("30 minutes") -> 30L
+            schedule.contains("hour") && !schedule.contains("2") && !schedule.contains("6") -> 60L
+            schedule.contains("2 hours") -> 120L
+            schedule.contains("6 hours") -> 360L
+            schedule.contains("Daily") -> 1440L
+            else -> 120L
+        }
     }
 
     private fun startFileMonitorService() {

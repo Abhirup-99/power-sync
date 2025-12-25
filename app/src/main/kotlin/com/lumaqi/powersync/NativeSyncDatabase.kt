@@ -195,7 +195,7 @@ class NativeSyncDatabase(context: Context) :
     }
 
     /** Get list of recently synced files */
-    fun getSyncHistory(limit: Int = 50): List<Map<String, Any>> {
+    fun getSyncHistory(limit: Int = 50, offset: Int = 0): List<Map<String, Any>> {
         val db = readableDatabase
         val history = mutableListOf<Map<String, Any>>()
 
@@ -208,7 +208,7 @@ class NativeSyncDatabase(context: Context) :
                         null,
                         null,
                         "$COL_SYNCED_AT DESC",
-                        limit.toString()
+                        "$offset, $limit"
                 )
 
         cursor.use {

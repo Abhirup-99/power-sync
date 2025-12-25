@@ -51,9 +51,11 @@ class SyncWorker(appContext: Context, workerParams: WorkerParameters) :
             val success = performSync()
 
             if (success) {
+                updateLastSyncTime()
                 DebugLogger.i("SyncWorker", "=== SYNC WORKER COMPLETED SUCCESSFULLY ===")
                 return Result.success()
             } else {
+                updateLastSyncTime() // Update time even if partial success, so we don't retry immediately
                 DebugLogger.w("SyncWorker", "=== SYNC WORKER COMPLETED WITH ISSUES ===")
                 return Result.success() // Don't retry on partial failures
             }
@@ -70,25 +72,41 @@ class SyncWorker(appContext: Context, workerParams: WorkerParameters) :
                             NativeSyncConfig.PREFS_NAME,
                             Context.MODE_PRIVATE
                     )
-            val folderPath = prefs.getString(NativeSyncConfig.KEY_SYNC_FOLDER_PATH, null)
-            DebugLogger.i("SyncWorker", "Folder path from prefs: $folderPath")
-
-            if (folderPath == null) {
-                DebugLogger.w("SyncWorker", "No sync folder configured")
+            // Support multiple folders - this logic needs to be updated to iterate all enabled folders
+            // For now, we'll just use the repository to get folders
+            val repository = com.lumaqi.powersync.data.SyncSettingsRepository(applicationContext)
+            val folders = repository.folders.value
+            
+            if (folders.isEmpty()) {
+                DebugLogger.w("SyncWorker", "No sync folders configured")
                 return@withContext false
             }
 
-            // Delegate to SyncEngine
-            DebugLogger.i("SyncWorker", "Delegating to SyncEngine.performSync($folderPath)")
             SyncStatusManager.notifySyncStarted()
-            val result =
-                    syncEngine.performSync(folderPath) { uploaded, total ->
-                        DebugLogger.i("SyncWorker", "Sync progress: $uploaded/$total")
-                        SyncStatusManager.notifySyncProgress(uploaded, total)
-                        setForeground(createForegroundInfo("Uploading $uploaded/$total"))
-                    }
-            DebugLogger.i("SyncWorker", "SyncEngine.performSync result: $result")
-            result >= 0
+            
+            var allSuccess = true
+            var totalUploaded = 0
+            
+            // Iterate through all enabled folders
+            for (folder in folders) {
+                if (!folder.isEnabled) continue
+                
+                DebugLogger.i("SyncWorker", "Syncing folder: ${folder.name} (${folder.localPath})")
+                val result = syncEngine.performSync(folder.localPath) { uploaded, total ->
+                    DebugLogger.i("SyncWorker", "Sync progress for ${folder.name}: $uploaded/$total")
+                    SyncStatusManager.notifySyncProgress(uploaded, total)
+                    setForeground(createForegroundInfo("Syncing ${folder.name}: $uploaded/$total"))
+                }
+                
+                if (result < 0) {
+                    allSuccess = false
+                } else {
+                    totalUploaded += result
+                }
+            }
+            
+            DebugLogger.i("SyncWorker", "Sync completed. Total uploaded: $totalUploaded")
+            allSuccess
         }
     }
 
@@ -96,7 +114,7 @@ class SyncWorker(appContext: Context, workerParams: WorkerParameters) :
         applicationContext
                 .getSharedPreferences(NativeSyncConfig.PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
-                .putString(NativeSyncConfig.KEY_LAST_SYNC_TIME, java.util.Date().toString())
+                .putLong(NativeSyncConfig.KEY_LAST_SYNC_TIME, System.currentTimeMillis())
                 .apply()
     }
 

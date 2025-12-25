@@ -27,6 +27,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lumaqi.powersync.NativeSyncConfig
+import com.lumaqi.powersync.data.SyncSettingsRepository
+import com.lumaqi.powersync.models.SyncFolder
 import com.lumaqi.powersync.services.SyncService
 import com.lumaqi.powersync.ui.theme.*
 import kotlinx.coroutines.launch
@@ -36,6 +38,7 @@ fun ConnectDriveScreen(onFolderSelected: () -> Unit) {
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
         val syncService = remember { SyncService(context) }
+        val repository = remember { SyncSettingsRepository(context) }
         var folderPath by remember { mutableStateOf<String?>(null) }
         var isSyncing by remember { mutableStateOf(false) }
 
@@ -57,17 +60,13 @@ fun ConnectDriveScreen(onFolderSelected: () -> Unit) {
                                 val path = getPathFromUri(context, it)
                                 if (path != null) {
                                         folderPath = path
-                                        val prefs =
-                                                context.getSharedPreferences(
-                                                        NativeSyncConfig.PREFS_NAME,
-                                                        Context.MODE_PRIVATE
-                                                )
-                                        prefs.edit()
-                                                .putString(
-                                                        NativeSyncConfig.KEY_SYNC_FOLDER_PATH,
-                                                        path
-                                                )
-                                                .apply()
+                                        
+                                        val folderName = path.substringAfterLast("/")
+                                        val newFolder = SyncFolder(
+                                            localPath = path,
+                                            name = if (folderName.isNotEmpty()) folderName else "Sync Folder"
+                                        )
+                                        repository.addFolder(newFolder)
                                 } else {
                                         Toast.makeText(
                                                         context,

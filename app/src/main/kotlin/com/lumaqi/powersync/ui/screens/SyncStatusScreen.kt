@@ -1,10 +1,14 @@
 package com.lumaqi.powersync.ui.screens
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Environment
 import android.os.PowerManager
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
@@ -17,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -63,6 +68,7 @@ fun SyncStatusScreen(onConfigureFolders: () -> Unit) {
     var lastSyncTime by remember { mutableLongStateOf(0L) }
     var isBatteryOptimized by remember { mutableStateOf(true) }
     var hasStoragePermission by remember { mutableStateOf(true) }
+    var hasNotificationPermission by remember { mutableStateOf(true) }
     var accountEmail by remember { mutableStateOf<String?>(null) }
     var driveFolderName by remember { mutableStateOf<String?>(null) }
     var autoSyncActive by remember { mutableStateOf(false) }
@@ -95,6 +101,16 @@ fun SyncStatusScreen(onConfigureFolders: () -> Unit) {
         hasStoragePermission =
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     Environment.isExternalStorageManager()
+                } else {
+                    true
+                }
+
+        hasNotificationPermission =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.POST_NOTIFICATIONS
+                    ) == PackageManager.PERMISSION_GRANTED
                 } else {
                     true
                 }
@@ -179,6 +195,14 @@ fun SyncStatusScreen(onConfigureFolders: () -> Unit) {
         }
     }
 
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            refreshData()
+        }
+    }
+
     // Load data and refresh on resume
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -239,6 +263,16 @@ fun SyncStatusScreen(onConfigureFolders: () -> Unit) {
                             if (isSyncing) return@ExtendedFloatingActionButton
                             if (folders.isEmpty()) {
                                 Toast.makeText(context, "No folders configured", Toast.LENGTH_SHORT).show()
+                                return@ExtendedFloatingActionButton
+                            }
+
+                            if (!hasStoragePermission) {
+                                Toast.makeText(context, "Storage permission required", Toast.LENGTH_SHORT).show()
+                                return@ExtendedFloatingActionButton
+                            }
+
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) {
+                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                                 return@ExtendedFloatingActionButton
                             }
 
@@ -323,6 +357,7 @@ fun SyncStatusScreen(onConfigureFolders: () -> Unit) {
                     autoSyncActive = autoSyncActive,
                     isBatteryOptimized = isBatteryOptimized,
                     hasStoragePermission = hasStoragePermission,
+                    hasNotificationPermission = hasNotificationPermission,
                     driveStorageTotal = driveStorageTotal,
                     driveStorageUsed = driveStorageUsed
                 )
@@ -334,6 +369,7 @@ fun SyncStatusScreen(onConfigureFolders: () -> Unit) {
                     onAddFolder = onConfigureFolders,
                     isBatteryOptimized = isBatteryOptimized,
                     hasStoragePermission = hasStoragePermission,
+                    hasNotificationPermission = hasNotificationPermission,
                     accountEmail = accountEmail,
                     driveFolderName = driveFolderName,
                     driveStorageTotal = driveStorageTotal,

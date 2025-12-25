@@ -1,11 +1,14 @@
 package com.lumaqi.powersync.ui.components
 
+import android.Manifest
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.text.format.DateUtils
 import android.text.format.Formatter
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -33,6 +36,7 @@ fun DashboardTabContent(
     autoSyncActive: Boolean,
     isBatteryOptimized: Boolean,
     hasStoragePermission: Boolean,
+    hasNotificationPermission: Boolean,
     driveStorageTotal: Long,
     driveStorageUsed: Long
 ) {
@@ -179,6 +183,23 @@ fun DashboardTabContent(
                             }
                             context.startActivity(intent)
                         }
+                    },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) {
+            item {
+                val permissionLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission()
+                ) { _ -> }
+
+                WarningCard(
+                    title = "Notification Permission Missing",
+                    message = "Android requires notification when an app works in the background.",
+                    onClick = {
+                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                     },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )

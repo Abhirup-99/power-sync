@@ -1,10 +1,13 @@
 package com.lumaqi.powersync.ui.components
 
+import android.Manifest
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.text.format.Formatter
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,6 +32,7 @@ fun SettingsTabContent(
     onAddFolder: () -> Unit,
     isBatteryOptimized: Boolean,
     hasStoragePermission: Boolean,
+    hasNotificationPermission: Boolean,
     accountEmail: String?,
     driveFolderName: String?,
     driveStorageTotal: Long,
@@ -177,6 +181,39 @@ fun SettingsTabContent(
                                     }
                                     context.startActivity(intent)
                                 }
+                            }
+                        ) { Text("Grant permission", fontWeight = FontWeight.Bold) }
+                    }
+                }
+            }
+        }
+
+        // Notification Permission
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) {
+            item {
+                val permissionLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission()
+                ) { _ -> }
+
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "Notification permission required",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Android requires notification when an app works in the background. This ensures you can see the sync progress.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        TextButton(
+                            onClick = {
+                                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                             }
                         ) { Text("Grant permission", fontWeight = FontWeight.Bold) }
                     }

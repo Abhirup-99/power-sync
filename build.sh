@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Build script for Chord Android app with different environments
-# Usage: ./build.sh [staging|prod] [debug|release]
+# Usage: ./build.sh [staging|prod] [debug|release|bundle|lint]
 
 set -e
 
@@ -33,8 +33,18 @@ case $BUILD_MODE in
     GRADLE_TASK="assemble${FLAVOR^}Release"
     APK_PATH="app/build/outputs/apk/${FLAVOR}/release/app-${FLAVOR}-release.apk"
     ;;
+  bundle)
+    BUILD_VARIANT="${FLAVOR}Release"
+    GRADLE_TASK=":app:bundle${FLAVOR^}Release"
+    AAB_PATH="app/build/outputs/bundle/${FLAVOR}Release/app-${FLAVOR}-release.aab"
+    ;;
+  lint)
+    BUILD_VARIANT="${FLAVOR}Debug"
+    GRADLE_TASK="lint${FLAVOR^}Debug"
+    APK_PATH=""
+    ;;
   *)
-    echo "❌ Error: Invalid build mode. Use: debug or release"
+    echo "❌ Error: Invalid build mode. Use: debug, release, bundle or lint"
     exit 1
     ;;
 esac
@@ -62,5 +72,10 @@ echo "🔨 Building..."
 
 echo ""
 echo "✅ Build completed successfully!"
-echo "📦 APK Location: ${APK_PATH}"
+if [ -n "$APK_PATH" ]; then
+  echo "📦 APK Location: ${APK_PATH}"
+fi
+if [ -n "$AAB_PATH" ]; then
+  echo "📦 AAB Location: ${AAB_PATH}"
+fi
 echo ""

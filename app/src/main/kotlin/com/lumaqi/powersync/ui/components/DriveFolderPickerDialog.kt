@@ -6,10 +6,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -214,7 +214,7 @@ fun DriveTreeItemRow(item: TreeItem.FolderNode, onExpand: () -> Unit, onSelect: 
                 Icon(
                         imageVector =
                                 if (item.isExpanded) Icons.Default.KeyboardArrowDown
-                                else Icons.Default.KeyboardArrowRight,
+                                else Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = "Expand",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )

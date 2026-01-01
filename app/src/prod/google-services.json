@@ -14,11 +14,27 @@
       },
       "oauth_client": [
         {
+          "client_id": "13733503780-22macre183mbf68r6prejmdeltu05ar6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.lumaqi.powersync",
+            "certificate_hash": "54cc8a11fb24d03138f66bd798b97d33be5e0709"
+          }
+        },
+        {
           "client_id": "13733503780-agnoh5494bvckdqc31lo3l54409sdc99.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.lumaqi.powersync",
             "certificate_hash": "40e2409702b5cfbdeca5f4683ac707e2e13d5244"
+          }
+        },
+        {
+          "client_id": "13733503780-cvh9g6hab29d01lt1i47miuc0rdkkqee.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.lumaqi.powersync",
+            "certificate_hash": "356091e4d6dfc3f0f47f07d6f42f5614fc19bb63"
           }
         },
         {

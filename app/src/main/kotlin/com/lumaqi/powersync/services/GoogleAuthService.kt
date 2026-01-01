@@ -97,10 +97,6 @@ class GoogleAuthService(private val context: Context) {
         }
     }
 
-    private fun upsertUser(user: com.google.firebase.auth.FirebaseUser) {
-        // No-op: API removed
-    }
-
     suspend fun signOut() {
         withContext(Dispatchers.IO) {
             try {

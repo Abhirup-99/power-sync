@@ -2,6 +2,7 @@ package com.lumaqi.powersync.utils
 
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
 import android.provider.DocumentsContract
 
@@ -26,12 +27,25 @@ object FileUtils {
                 for (volume in storageVolumes) {
                     val uuid = volume.uuid
                     if (uuid != null && uuid.equals(type, ignoreCase = true)) {
-                        val path = if (split.size > 1) {
-                            "${volume.directory?.absolutePath}/${split[1]}"
-                        } else {
+                        val volumePath = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                             volume.directory?.absolutePath
+                        } else {
+                            try {
+                                val method = volume.javaClass.getMethod("getPath")
+                                method.invoke(volume) as String
+                            } catch (e: Exception) {
+                                null
+                            }
                         }
-                        return path
+
+                        if (volumePath != null) {
+                            val path = if (split.size > 1) {
+                                "$volumePath/${split[1]}"
+                            } else {
+                                volumePath
+                            }
+                            return path
+                        }
                     }
                 }
                 null

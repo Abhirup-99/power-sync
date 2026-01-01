@@ -15,8 +15,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Chat
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.rounded.Chat
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -288,7 +288,7 @@ fun SyncStatusScreen(
                                 }
                                 context.startActivity(intent)
                             }) {
-                                Icon(Icons.Rounded.Chat, contentDescription = "Chat")
+                                Icon(Icons.AutoMirrored.Rounded.Chat, contentDescription = "Chat")
                             }
 
                             var showMenu by remember { mutableStateOf(false) }

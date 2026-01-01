@@ -89,21 +89,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                             )
     ) {
         Box(modifier = Modifier.fillMaxSize().padding(24.dp)) {
-            // Top Bar
-            Row(
-                    modifier =
-                            Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(top = 16.dp),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = { /* TODO: Help */}) {
-                    Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.HelpOutline,
-                            contentDescription = "Help",
-                            tint = MaterialTheme.colorScheme.onBackground
-                    )
-                }
-            }
+
 
             // Center Content
             Card(
@@ -194,35 +180,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 }
             }
 
-            // Bottom Link
-            Row(
-                    modifier =
-                            Modifier.align(Alignment.BottomCenter)
-                                    .padding(bottom = 32.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .clickable { /* TODO: Open User Guide */}
-                                    .padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.Help,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                        text = "Online User's Guide",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.secondary,
-                        style =
-                                MaterialTheme.typography.bodyMedium.copy(
-                                        textDecoration =
-                                                androidx.compose.ui.text.style.TextDecoration
-                                                        .Underline
-                                )
-                )
-            }
+
         }
     }
 }

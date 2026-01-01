@@ -119,7 +119,12 @@ class SyncWorker(appContext: Context, workerParams: WorkerParameters) :
 
         // Roaming
         if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) {
-            val isRoaming = !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_ROAMING)
+            val isRoaming = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_ROAMING)
+            } else {
+                val telephonyManager = applicationContext.getSystemService(Context.TELEPHONY_SERVICE) as? android.telephony.TelephonyManager
+                telephonyManager?.isNetworkRoaming == true
+            }
             val allowedOnRoaming = repository.getBoolean(NativeSyncConfig.KEY_ALLOWED_ON_MOBILE_ROAMING, false)
             if (isRoaming && !allowedOnRoaming) {
                 DebugLogger.i("SyncWorker", "On roaming but not allowed")

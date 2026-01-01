@@ -42,7 +42,8 @@ class FileMonitorService : Service() {
         DebugLogger.i("FileMonitorService", "Service starting")
 
         createNotificationChannel()
-        startForeground(
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
                 NativeSyncConfig.NOTIFICATION_ID + 1, // Use different ID than SyncWorker
                 createNotification(),
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -50,7 +51,13 @@ class FileMonitorService : Service() {
                 } else {
                     0
                 }
-        )
+            )
+        } else {
+            startForeground(
+                NativeSyncConfig.NOTIFICATION_ID + 1,
+                createNotification()
+            )
+        }
 
         startMonitoring()
 
@@ -83,26 +90,39 @@ class FileMonitorService : Service() {
 
             DebugLogger.i("FileMonitorService", "Starting FileObserver on: $folderPath")
 
-            val observer =
-                    object : FileObserver(folderPath, CREATE or MODIFY or MOVED_TO) {
-                        override fun onEvent(event: Int, path: String?) {
-                            if (path == null) return
-
-                            // Ignore dot files or temp files if needed
-                            if (path.startsWith(".")) return
-
-                            DebugLogger.i(
-                                    "FileMonitorService",
-                                    "File event ($event) on: $path in $folderPath"
-                            )
-                            SyncStatusManager.notifyFileChanged()
-                            scheduleSync()
-                        }
+            val mask = FileObserver.CREATE or FileObserver.MODIFY or FileObserver.MOVED_TO
+            val observer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                object : FileObserver(File(folderPath), mask) {
+                    override fun onEvent(event: Int, path: String?) {
+                        onFileEvent(event, path, folderPath)
                     }
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                object : FileObserver(folderPath, mask) {
+                    override fun onEvent(event: Int, path: String?) {
+                        onFileEvent(event, path, folderPath)
+                    }
+                }
+            }
 
             observer.startWatching()
             observers.add(observer)
         }
+    }
+
+    private fun onFileEvent(event: Int, path: String?, folderPath: String) {
+        if (path == null) return
+
+        // Ignore dot files or temp files if needed
+        if (path.startsWith(".")) return
+
+        DebugLogger.i(
+                "FileMonitorService",
+                "File event ($event) on: $path in $folderPath"
+        )
+        SyncStatusManager.notifyFileChanged()
+        scheduleSync()
     }
 
     private fun scheduleSync() {

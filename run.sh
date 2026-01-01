@@ -72,7 +72,10 @@ if [[ "$STATE" != "device" ]]; then
   exit 1
 fi
 
-echo "🔨 Building and installing..."
+echo "�️  Uninstalling existing app (if any) to avoid signature conflicts..."
+$ADB uninstall "$APP_ID" >/dev/null 2>&1 || true
+
+echo "�🔨 Building and installing..."
 ./gradlew "$GRADLE_TASK"
 
 echo ""
